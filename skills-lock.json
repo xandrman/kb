@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "commit-message-storyteller": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/commit-message-storyteller/SKILL.md",
+      "computedHash": "ca0d63ccdfeb488294209fd40b8ce122e809931a6d5c22a105627624e4e2dece"
+    },
+    "create-agentsmd": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/create-agentsmd/SKILL.md",
+      "computedHash": "bfbdbb76b17cca970d1d624e36ce72b6847860d740581c8865da796c1fef8552"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf"
+    },
+    "git-flow-branch-creator": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/git-flow-branch-creator/SKILL.md",
+      "computedHash": "8add10a7fce31ef99856d36bffeb90f1f1130f5afd88b111417c257f1e5d39bd"
+    },
+    "gitignore-generator": {
+      "source": "jeremylongshore/tons-of-skills-marketplace",
+      "sourceType": "github",
+      "skillPath": "skills/01-devops-basics/gitignore-generator/SKILL.md",
+      "computedHash": "408d0fc277dc710d24d06466d786af83d5b07cfeb39a236003f3bae622317638"
+    }
+  }
+}
