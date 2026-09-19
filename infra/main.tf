@@ -16,9 +16,14 @@ resource "docker_container" "nginx" {
     external = 80
   }
 
-  volumes {
-    container_path = "/etc/nginx/conf.d"
-    host_path      = abspath("${path.module}/configs/nginx")
+  upload {
+    file    = "/etc/nginx/nginx.conf"
+    content = file("${path.module}/nginx/nginx.conf")
+  }
+
+  upload {
+    file    = "/etc/nginx/conf.d/default.conf"
+    content = file("${path.module}/nginx/default.conf")
   }
 
   networks_advanced {
