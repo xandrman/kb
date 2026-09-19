@@ -58,7 +58,7 @@ resource "docker_container" "tempo" {
 
   upload {
     file    = "/etc/tempo/tempo.yaml"
-    content = file("${path.module}/configs/tempo/tempo.yaml")
+    content = file("${path.module}/tempo/tempo.yaml")
   }
 
   volumes {
@@ -80,7 +80,7 @@ resource "docker_container" "alloy" {
 
   upload {
     file    = "/etc/alloy/config.alloy"
-    content = file("${path.module}/configs/alloy/config.alloy")
+    content = file("${path.module}/alloy/config.alloy")
   }
 
   networks_advanced {
