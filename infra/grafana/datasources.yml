@@ -13,3 +13,16 @@ datasources:
       serviceMap:
         datasourceUid: tempo
     editable: false
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://kb_loki:3100
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+    editable: false

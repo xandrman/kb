@@ -15,6 +15,8 @@ resource "docker_container" "nginx" {
   image   = "nginx:stable-alpine-otel@sha256:21f5b7af9dad45efdd63e231bb211f8c90abc54cbdd7ae783ab9855be5374428"
   restart = "unless-stopped"
 
+  command = ["/bin/sh", "-c", "rm -f /var/log/nginx/access.log /var/log/nginx/error.log && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+
   ports {
     internal = 80
     external = 80
@@ -106,6 +108,39 @@ resource "docker_container" "alloy" {
   upload {
     file    = "/etc/alloy/config.alloy"
     content = file("${path.module}/alloy/config.alloy")
+  }
+
+  volumes {
+    container_path = "/var/log/nginx"
+    volume_name    = docker_volume.nginx_logs.name
+    read_only      = true
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+resource "docker_volume" "loki_data" {
+  name = "kb_loki_data"
+}
+
+resource "docker_container" "loki" {
+  name    = "kb_loki"
+  image   = "grafana/loki:3.7.8@sha256:81a6802ec4bd1b88c564494f06376889ed022998a188826190d26d2754ac2aae"
+  restart = "unless-stopped"
+  user    = "root"
+
+  command = ["-target=all", "-config.file", "/etc/loki/loki.yaml"]
+
+  upload {
+    file    = "/etc/loki/loki.yaml"
+    content = file("${path.module}/loki/loki.yaml")
+  }
+
+  volumes {
+    container_path = "/var/loki"
+    volume_name    = docker_volume.loki_data.name
   }
 
   networks_advanced {
