@@ -6,6 +6,10 @@ resource "docker_network" "internal" {
   name = "kb_internal"
 }
 
+resource "docker_volume" "nginx_logs" {
+  name = "kb_nginx_logs"
+}
+
 resource "docker_container" "nginx" {
   name    = "kb_nginx"
   image   = "nginx:stable-alpine-otel@sha256:21f5b7af9dad45efdd63e231bb211f8c90abc54cbdd7ae783ab9855be5374428"
@@ -35,6 +39,11 @@ resource "docker_container" "nginx" {
   upload {
     file    = "/etc/nginx/conf.d/grafana.conf"
     content = file("${path.module}/nginx/grafana.conf")
+  }
+
+  volumes {
+    container_path = "/var/log/nginx"
+    volume_name    = docker_volume.nginx_logs.name
   }
 
   networks_advanced {
