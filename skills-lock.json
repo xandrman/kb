@@ -43,6 +43,12 @@
       "skillPath": "skills/grafana-core/grafana-oss/SKILL.md",
       "computedHash": "6638b23a0e6ee2cb2c35fa5c3646b78c183ca018209f9b37efeb5b7e6a71e8af"
     },
+    "keycloak-administration": {
+      "source": "dauquangthanh/hanoi-rainbow",
+      "sourceType": "github",
+      "skillPath": "skills/keycloak-administration/SKILL.md",
+      "computedHash": "f2d09b4f4fd0ced095c82713bdab711257577291a2502a29143b3c3dd2b10cfa"
+    },
     "loki": {
       "source": "grafana/skills",
       "sourceType": "github",
