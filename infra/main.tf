@@ -20,8 +20,8 @@ resource "docker_container" "nginx" {
     name = docker_network.dmz.name
   }
 
-  lifecycle {
-    create_before_destroy = true
+  networks_advanced {
+    name = docker_network.internal.name
   }
 }
 
