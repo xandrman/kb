@@ -43,6 +43,11 @@ resource "docker_container" "nginx" {
     content = file("${path.module}/nginx/grafana.conf")
   }
 
+  upload {
+    file    = "/etc/nginx/conf.d/keycloak.conf"
+    content = file("${path.module}/nginx/keycloak.conf")
+  }
+
   volumes {
     container_path = "/var/log/nginx"
     volume_name    = docker_volume.nginx_logs.name
@@ -141,6 +146,33 @@ resource "docker_container" "loki" {
   volumes {
     container_path = "/var/loki"
     volume_name    = docker_volume.loki_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+resource "docker_volume" "keycloak_data" {
+  name = "kb_keycloak_data"
+}
+
+resource "docker_container" "keycloak" {
+  name    = "kb_keycloak"
+  image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
+  restart = "unless-stopped"
+
+  command = [
+    "start",
+    "--http-enabled=true",
+    "--hostname=kb-keycloak.localhost",
+    "--cache=local",
+    "--health-enabled=true",
+  ]
+
+  volumes {
+    container_path = "/opt/keycloak/data"
+    volume_name    = docker_volume.keycloak_data.name
   }
 
   networks_advanced {
