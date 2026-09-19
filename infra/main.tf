@@ -16,6 +16,11 @@ resource "docker_container" "nginx" {
     external = 80
   }
 
+  volumes {
+    container_path = "/etc/nginx/conf.d"
+    host_path      = abspath("${path.module}/configs/nginx")
+  }
+
   networks_advanced {
     name = docker_network.dmz.name
   }
