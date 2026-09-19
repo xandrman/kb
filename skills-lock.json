@@ -55,6 +55,18 @@
       "skillPath": "skills/grafana-lgtm/loki/SKILL.md",
       "computedHash": "0c83822f226a02921e12cecb35f1270d89744a782895690d4a4e8904588fb07c"
     },
+    "neo4j-cli-tools-skill": {
+      "source": "neo4j-contrib/neo4j-skills",
+      "sourceType": "github",
+      "skillPath": "neo4j-cli-tools-skill/SKILL.md",
+      "computedHash": "ae4fe6f255414071afaa87e09b36e2824a99bc5ff0f6f1b473a6a18be399621f"
+    },
+    "neo4j-mcp-skill": {
+      "source": "neo4j-contrib/neo4j-skills",
+      "sourceType": "github",
+      "skillPath": "neo4j-mcp-skill/SKILL.md",
+      "computedHash": "77b385d6682e695334c752038c05050f0c3ddd3ed9d64be9d4a6e58fdbd274b7"
+    },
     "nginx-configuration": {
       "source": "aj-geddes/useful-ai-prompts",
       "sourceType": "github",
