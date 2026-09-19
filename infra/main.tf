@@ -157,6 +157,25 @@ resource "docker_volume" "keycloak_data" {
   name = "kb_keycloak_data"
 }
 
+resource "docker_volume" "qdrant_data" {
+  name = "kb_qdrant_data"
+}
+
+resource "docker_container" "qdrant" {
+  name    = "kb_qdrant"
+  image   = "qdrant/qdrant:v1.19.1@sha256:0699e7733a6fa7fa7f6b95dcbed84ebb04584110da525cdfdef9f305c4f57738"
+  restart = "unless-stopped"
+
+  volumes {
+    container_path = "/qdrant/storage"
+    volume_name    = docker_volume.qdrant_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_container" "keycloak" {
   name    = "kb_keycloak"
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
