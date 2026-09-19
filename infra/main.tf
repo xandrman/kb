@@ -16,6 +16,12 @@ resource "docker_container" "nginx" {
     external = 80
   }
 
+  ports {
+    internal = 80
+    external = 80
+    ip       = "::"
+  }
+
   upload {
     file    = "/etc/nginx/nginx.conf"
     content = file("${path.module}/nginx/nginx.conf")
@@ -24,6 +30,11 @@ resource "docker_container" "nginx" {
   upload {
     file    = "/etc/nginx/conf.d/default.conf"
     content = file("${path.module}/nginx/default.conf")
+  }
+
+  upload {
+    file    = "/etc/nginx/conf.d/grafana.conf"
+    content = file("${path.module}/nginx/grafana.conf")
   }
 
   networks_advanced {
