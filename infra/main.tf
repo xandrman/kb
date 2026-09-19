@@ -38,3 +38,33 @@ resource "docker_container" "grafana" {
     create_before_destroy = true
   }
 }
+
+resource "docker_volume" "tempo_data" {
+  name = "kb_tempo_data"
+}
+
+resource "docker_container" "tempo" {
+  name    = "kb_tempo"
+  image   = "grafana/tempo:3.0.3@sha256:0296560ac66f8a3600d7fb3014a52c189d4d9c3549ad6ff441bf2409855d68d5"
+  restart = "unless-stopped"
+
+  command = ["-target=all", "-config.file", "/etc/tempo/tempo.yaml"]
+
+  upload {
+    file    = "/etc/tempo/tempo.yaml"
+    content = file("${path.module}/configs/tempo/tempo.yaml")
+  }
+
+  volumes {
+    container_path = "/var/tempo"
+    volume_name    = docker_volume.tempo_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
