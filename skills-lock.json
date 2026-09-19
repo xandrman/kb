@@ -43,6 +43,12 @@
       "skillPath": "skills/grafana-core/grafana-oss/SKILL.md",
       "computedHash": "6638b23a0e6ee2cb2c35fa5c3646b78c183ca018209f9b37efeb5b7e6a71e8af"
     },
+    "nginx-configuration": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/nginx-configuration/SKILL.md",
+      "computedHash": "30535fb54fb19ddcbad3697da291fbd22ea60f0c245d55be41ae9043f68bfd4a"
+    },
     "tempo": {
       "source": "grafana/skills",
       "sourceType": "github",
