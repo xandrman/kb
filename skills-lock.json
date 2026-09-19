@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "alloy": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-core/alloy/SKILL.md",
+      "computedHash": "5bf0f25414e5ffa56350c73ad9676c98912e1c34ff6f075e326d6bce3d793ee8"
+    },
     "commit-message-storyteller": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
