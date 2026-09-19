@@ -61,6 +61,18 @@
       "skillPath": "skills/nginx-configuration/SKILL.md",
       "computedHash": "30535fb54fb19ddcbad3697da291fbd22ea60f0c245d55be41ae9043f68bfd4a"
     },
+    "qdrant-advisor": {
+      "source": "qdrant/skills",
+      "sourceType": "github",
+      "skillPath": "meta/qdrant-advisor/SKILL.md",
+      "computedHash": "847fd40916d767cde7cf266a4213d6645b125e6103daea3a313d99075ec209f0"
+    },
+    "qdrant-deployment-options": {
+      "source": "qdrant/skills",
+      "sourceType": "github",
+      "skillPath": "skills/qdrant-deployment-options/SKILL.md",
+      "computedHash": "9248f190e22910b3264db056a573e0b2c1098d070b6c3eff7926e5e129787d29"
+    },
     "tempo": {
       "source": "grafana/skills",
       "sourceType": "github",
