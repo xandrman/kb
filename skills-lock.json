@@ -30,6 +30,12 @@
       "sourceType": "github",
       "skillPath": "skills/01-devops-basics/gitignore-generator/SKILL.md",
       "computedHash": "408d0fc277dc710d24d06466d786af83d5b07cfeb39a236003f3bae622317638"
+    },
+    "grafana-oss": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-core/grafana-oss/SKILL.md",
+      "computedHash": "6638b23a0e6ee2cb2c35fa5c3646b78c183ca018209f9b37efeb5b7e6a71e8af"
     }
   }
 }
