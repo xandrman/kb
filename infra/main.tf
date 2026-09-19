@@ -33,10 +33,6 @@ resource "docker_container" "grafana" {
   networks_advanced {
     name = docker_network.internal.name
   }
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
 resource "docker_volume" "tempo_data" {
@@ -63,10 +59,6 @@ resource "docker_container" "tempo" {
   networks_advanced {
     name = docker_network.internal.name
   }
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
 resource "docker_container" "alloy" {
@@ -83,9 +75,5 @@ resource "docker_container" "alloy" {
 
   networks_advanced {
     name = docker_network.internal.name
-  }
-
-  lifecycle {
-    create_before_destroy = true
   }
 }
