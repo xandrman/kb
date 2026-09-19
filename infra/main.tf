@@ -68,3 +68,24 @@ resource "docker_container" "tempo" {
     create_before_destroy = true
   }
 }
+
+resource "docker_container" "alloy" {
+  name    = "kb_alloy"
+  image   = "grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839"
+  restart = "unless-stopped"
+
+  command = ["run", "/etc/alloy/config.alloy"]
+
+  upload {
+    file    = "/etc/alloy/config.alloy"
+    content = file("${path.module}/configs/alloy/config.alloy")
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
