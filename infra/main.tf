@@ -176,6 +176,25 @@ resource "docker_container" "qdrant" {
   }
 }
 
+resource "docker_volume" "neo4j_data" {
+  name = "kb_neo4j_data"
+}
+
+resource "docker_container" "neo4j" {
+  name    = "kb_neo4j"
+  image   = "neo4j:2026.08.1@sha256:d8f4c156caa3af76499134947deb11d13042e471d9733060449f2a01eb7a248e"
+  restart = "unless-stopped"
+
+  volumes {
+    container_path = "/data"
+    volume_name    = docker_volume.neo4j_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_container" "keycloak" {
   name    = "kb_keycloak"
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
