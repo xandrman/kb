@@ -90,6 +90,12 @@
       "sourceType": "github",
       "skillPath": "skills/grafana-lgtm/tempo/SKILL.md",
       "computedHash": "aa4bff51512423cb70f7020d589d56cfc3748fd8650525b1130f66ac794e81a5"
+    },
+    "vllm-deploy-docker": {
+      "source": "vllm-project/vllm-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/vllm-skills/skills/vllm-deploy-docker/SKILL.md",
+      "computedHash": "6d59cfedeb3c8b861bb51a11cb56c417474fb75f6bc97fe2366a943af60aaf57"
     }
   }
 }
