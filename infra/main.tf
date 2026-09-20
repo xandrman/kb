@@ -213,19 +213,27 @@ resource "docker_container" "keycloak" {
   }
 }
 
-resource "docker_volume" "models" {
-  name = "kb_models"
-}
-
 locals {
-  main_model_path = "${var.models_path}/${var.main_model_dir}"
-
   hf_models = {
     "reranker" = {
       repo     = "BAAI/bge-reranker-v2-m3"
       revision = "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
     }
+    "embedding" = {
+      repo     = "ai-sage/Giga-Embeddings-instruct-10B-A1.8B-0826"
+      revision = "3bca8f1e01478765d17df9237174a1419c38e496"
+    }
+    "generate" = {
+      repo     = "Intel/Qwen3.6-35B-A3B-int4-mixed-AutoRound"
+      revision = "65f69c73f17488236c85c85211f6ba28d7106157"
+    }
   }
+}
+
+resource "docker_volume" "models" {
+  for_each = local.hf_models
+
+  name = "kb_models_${each.key}"
 }
 
 resource "docker_image" "hf_cli" {
@@ -256,12 +264,12 @@ resource "docker_container" "hf_cli" {
     "download",
     each.value.repo,
     "--revision", each.value.revision,
-    "--local-dir", local.main_model_path,
+    "--local-dir", var.model_path,
   ]
 
   volumes {
-    container_path = var.models_path
-    volume_name    = docker_volume.models.name
+    container_path = var.model_path
+    volume_name    = docker_volume.models[each.key].name
   }
 
   networks_advanced {

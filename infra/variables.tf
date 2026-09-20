@@ -1,9 +1,5 @@
-variable "models_path" {
-  type    = string
-  default = "/models"
-}
-
-variable "main_model_dir" {
-  type    = string
-  default = "main"
+variable "model_path" {
+  description = "Mount path of each model volume inside the hf-cli container"
+  type        = string
+  default     = "/model"
 }
