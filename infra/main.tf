@@ -22,12 +22,6 @@ resource "docker_container" "nginx" {
     external = 80
   }
 
-  ports {
-    internal = 80
-    external = 80
-    ip       = "::"
-  }
-
   upload {
     file    = "/etc/nginx/nginx.conf"
     content = file("${path.module}/nginx/nginx.conf")
