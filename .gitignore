@@ -8,3 +8,9 @@
 *.tfplan
 *.tfvars
 !*.tfvars.example
+
+# Локальные override-файлы
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
