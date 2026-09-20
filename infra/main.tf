@@ -3,7 +3,8 @@ resource "docker_network" "dmz" {
 }
 
 resource "docker_network" "internal" {
-  name = "kb_internal"
+  name     = "kb_internal"
+  internal = true
 }
 
 resource "docker_volume" "nginx_logs" {
