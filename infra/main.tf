@@ -214,6 +214,7 @@ resource "docker_container" "keycloak" {
 }
 
 locals {
+  model_path = "/model"
   hf_models = {
     "reranker" = {
       repo     = "BAAI/bge-reranker-v2-m3"
@@ -264,11 +265,11 @@ resource "docker_container" "hf_cli" {
     "download",
     each.value.repo,
     "--revision", each.value.revision,
-    "--local-dir", var.model_path,
+    "--local-dir", local.model_path,
   ]
 
   volumes {
-    container_path = var.model_path
+    container_path = local.model_path
     volume_name    = docker_volume.models[each.key].name
   }
 
