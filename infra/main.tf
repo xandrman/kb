@@ -211,3 +211,66 @@ resource "docker_container" "keycloak" {
     name = docker_network.internal.name
   }
 }
+
+resource "docker_volume" "models" {
+  name = "kb_models"
+}
+
+locals {
+  main_model_path = "${var.models_path}/${var.main_model_dir}"
+
+  hf_models = {
+    "reranker" = {
+      repo     = "BAAI/bge-reranker-v2-m3"
+      revision = "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+    }
+  }
+}
+
+resource "docker_image" "hf_cli" {
+  name = "kb-hf-cli:1.0.0"
+
+  build {
+    context     = "${path.module}/hf-cli"
+    dockerfile  = "Dockerfile"
+    pull_parent = true
+  }
+
+  triggers = {
+    dockerfile = filesha256("${path.module}/hf-cli/Dockerfile")
+  }
+}
+
+resource "docker_container" "hf_cli" {
+  for_each = local.hf_models
+
+  name     = "kb_hf_cli_${each.key}"
+  image    = docker_image.hf_cli.name
+  attach   = true
+  logs     = true
+  must_run = false
+
+  command = [
+    "hf",
+    "download",
+    each.value.repo,
+    "--revision", each.value.revision,
+    "--local-dir", local.main_model_path,
+  ]
+
+  volumes {
+    container_path = var.models_path
+    volume_name    = docker_volume.models.name
+  }
+
+  networks_advanced {
+    name = docker_network.dmz.name
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = self.exit_code == 0
+      error_message = "Загрузка ${each.value.repo} завершилась с кодом ${self.exit_code}"
+    }
+  }
+}
