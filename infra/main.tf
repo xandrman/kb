@@ -75,6 +75,31 @@ resource "docker_container" "grafana" {
   env = [
     "GF_SERVER_ROOT_URL=http://${var.domain_name}:3000",
     "GF_SERVER_DOMAIN=${var.domain_name}",
+
+    # Локальная форма входа выключена: вход только через Keycloak.
+    "GF_AUTH_DISABLE_LOGIN_FORM=true",
+    "GF_AUTH_GENERIC_OAUTH_ENABLED=true",
+    "GF_AUTH_GENERIC_OAUTH_NAME=Keycloak",
+    "GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true",
+    "GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true",
+    "GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana",
+    "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${var.grafana_oauth_client_secret}",
+    "GF_AUTH_GENERIC_OAUTH_SCOPES=openid email profile roles",
+    "GF_AUTH_GENERIC_OAUTH_USE_PKCE=true",
+    "GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true",
+
+    # Браузер ходит на публичный адрес, обмен кода и userinfo — по внутренней сети.
+    "GF_AUTH_GENERIC_OAUTH_AUTH_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/auth",
+    "GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/token",
+    "GF_AUTH_GENERIC_OAUTH_API_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/userinfo",
+
+    "GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username",
+    "GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email",
+    "GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name",
+    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(realm_access.roles[*], 'grafana-admin') && 'Admin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'",
+    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=false",
+
+    "GF_AUTH_SIGNOUT_REDIRECT_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("http://${var.domain_name}:3000/login")}&client_id=grafana",
   ]
 
   upload {
@@ -249,12 +274,23 @@ resource "docker_container" "keycloak" {
 
   command = [
     "start",
+    "--import-realm",
     "--http-enabled=true",
     "--hostname=http://${var.domain_name}:8080",
     "--proxy-headers=xforwarded",
     "--cache=local",
     "--health-enabled=true",
   ]
+
+  upload {
+    file = "/opt/keycloak/data/import/realm-kb.json"
+    content = templatefile("${path.module}/keycloak/realm-kb.json", {
+      domain_name           = var.domain_name
+      grafana_client_secret = var.grafana_oauth_client_secret
+      seed_username         = var.keycloak_seed_username
+      seed_password         = var.keycloak_seed_password
+    })
+  }
 
   volumes {
     container_path = "/opt/keycloak/data"
