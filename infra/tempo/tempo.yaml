@@ -19,5 +19,33 @@ storage:
     local:
       path: /var/tempo/blocks
 
+metrics_generator:
+  ring_mode: generator
+  storage:
+    path: /var/tempo/metrics_generator
+    remote_write:
+      - url: http://kb-prometheus:9090/api/v1/write
+        send_exemplars: true
+  registry:
+    external_labels:
+      source: tempo
+      cluster: kb
+  processor:
+    service_graphs: {}
+    span_metrics:
+      # Верхние корзины подняты до 64 с: дефолт обрывается на 16.384 с,
+      # а п. 6.1 требует измерять P95 полного ответа на пороге 30 с.
+      histogram_buckets:
+        [0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512,
+         1.024, 2.048, 4.096, 8.192, 16.384, 24, 32, 48, 64]
+      enable_target_info: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
+
 usage_report:
   reporting_enabled: false

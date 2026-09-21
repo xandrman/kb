@@ -118,7 +118,7 @@ resource "docker_container" "alloy" {
   image   = "grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839"
   restart = "unless-stopped"
 
-  command = ["run", "/etc/alloy/config.alloy"]
+  command = ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
 
   upload {
     file    = "/etc/alloy/config.alloy"
@@ -165,6 +165,38 @@ resource "docker_container" "loki" {
 
 resource "docker_volume" "keycloak_data" {
   name = "kb-keycloak-data"
+}
+
+resource "docker_volume" "prometheus_data" {
+  name = "kb-prometheus-data"
+}
+
+resource "docker_container" "prometheus" {
+  name    = "kb-prometheus"
+  image   = "prom/prometheus:v3.14.0@sha256:e906cef998316bbe319f98711e1b4d8613ad37e14b08ff831d7036e77b7464f9"
+  restart = "unless-stopped"
+
+  command = [
+    "--config.file=/etc/prometheus/prometheus.yml",
+    "--storage.tsdb.path=/prometheus",
+    "--storage.tsdb.retention.time=30d",
+    "--web.enable-remote-write-receiver",
+    "--enable-feature=exemplar-storage",
+  ]
+
+  upload {
+    file    = "/etc/prometheus/prometheus.yml"
+    content = file("${path.module}/prometheus/prometheus.yml")
+  }
+
+  volumes {
+    container_path = "/prometheus"
+    volume_name    = docker_volume.prometheus_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
 }
 
 resource "docker_volume" "qdrant_data" {

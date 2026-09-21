@@ -9,9 +9,18 @@ datasources:
     jsonData:
       httpMethod: GET
       tracesToMetrics:
-        datasourceUid: tempo
+        datasourceUid: prometheus
       serviceMap:
-        datasourceUid: tempo
+        datasourceUid: prometheus
+    editable: false
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://kb-prometheus:9090
+    jsonData:
+      httpMethod: GET
     editable: false
 
   - name: Loki
