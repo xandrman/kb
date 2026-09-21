@@ -80,8 +80,8 @@ resource "docker_container" "grafana" {
     "GF_SERVER_ROOT_URL=http://${var.domain_name}:3000",
     "GF_SERVER_DOMAIN=${var.domain_name}",
 
-    # Локальная форма входа выключена: вход только через Keycloak.
     "GF_AUTH_DISABLE_LOGIN_FORM=true",
+    "GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=true",
     "GF_AUTH_GENERIC_OAUTH_ENABLED=true",
     "GF_AUTH_GENERIC_OAUTH_NAME=Keycloak",
     "GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true",
@@ -92,7 +92,6 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_USE_PKCE=true",
     "GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true",
 
-    # Браузер ходит на публичный адрес, обмен кода и userinfo — по внутренней сети.
     "GF_AUTH_GENERIC_OAUTH_AUTH_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/auth",
     "GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/token",
     "GF_AUTH_GENERIC_OAUTH_API_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/userinfo",
@@ -100,8 +99,9 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username",
     "GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email",
     "GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name",
-    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(realm_access.roles[*], 'grafana-admin') && 'Admin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'",
+    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(realm_access.roles[*], 'grafana-admin') && 'GrafanaAdmin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'",
     "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=false",
+    "GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN=true",
 
     "GF_AUTH_SIGNOUT_REDIRECT_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("http://${var.domain_name}:3000/login")}&client_id=grafana",
   ]
