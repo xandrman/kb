@@ -22,6 +22,12 @@ variable "vllm_reranker_gpus" {
   default     = "3"
 }
 
+variable "docling_gpus" {
+  description = "GPU device for Docling layout and table models (single index, e.g. '3')"
+  type        = string
+  default     = "3"
+}
+
 variable "keycloak_admin_username" {
   description = "Bootstrap admin username for Keycloak (applied only on the first start with an empty database)"
   type        = string
