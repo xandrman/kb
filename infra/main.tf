@@ -233,6 +233,22 @@ resource "docker_container" "prometheus" {
   }
 }
 
+resource "docker_container" "dcgm_exporter" {
+  name    = "kb-dcgm-exporter"
+  image   = "nvidia/dcgm-exporter:4.6.1-4.8.4-distroless@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003"
+  restart = "unless-stopped"
+  runtime = "nvidia"
+
+  env = [
+    "NVIDIA_VISIBLE_DEVICES=all",
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+  ]
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_volume" "qdrant_data" {
   name = "kb-qdrant-data"
 }

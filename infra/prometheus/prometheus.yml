@@ -33,3 +33,7 @@ scrape_configs:
   - job_name: "alloy"
     static_configs:
       - targets: ["kb-alloy:12345"]
+
+  - job_name: "dcgm"
+    static_configs:
+      - targets: ["kb-dcgm-exporter:9400"]
