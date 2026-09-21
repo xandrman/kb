@@ -15,3 +15,9 @@ variable "vllm_embedding_gpus" {
   type        = string
   default     = "2"
 }
+
+variable "vllm_reranker_gpus" {
+  description = "GPU device for vLLM reranker (single index, e.g. '3')"
+  type        = string
+  default     = "3"
+}

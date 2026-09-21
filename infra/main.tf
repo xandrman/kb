@@ -318,6 +318,37 @@ resource "docker_container" "vllm_embedding" {
   }
 }
 
+resource "docker_container" "vllm_reranker" {
+  name     = "kb_vllm_reranker"
+  image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
+  restart  = "unless-stopped"
+  runtime  = "nvidia"
+  ipc_mode = "private"
+  shm_size = 16384
+
+  env = [
+    "NVIDIA_VISIBLE_DEVICES=${var.vllm_reranker_gpus}",
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+  ]
+
+  command = [
+    local.model_path,
+    "--host", "0.0.0.0",
+    "--served-model-name", "default",
+    "--gpu-memory-utilization", "0.4",
+    "--runner", "pooling",
+  ]
+
+  volumes {
+    container_path = local.model_path
+    volume_name    = docker_volume.models["reranker"].name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 locals {
   model_path = "/model"
   hf_models = {
