@@ -1,11 +1,17 @@
 variable "domain_name" {
-  description = "Домен для внешних сервисов (без ведущей точки, например \"localhost\")"
+  description = "Domain for externally exposed services (no leading dot, e.g. 'localhost')"
   type        = string
   default     = "localhost"
 }
 
 variable "vllm_gpus" {
-  description = "GPU-устройства для vLLM generate (строка вида \"device=0,1\" с кавычками)"
+  description = "GPU devices for vLLM generate (comma-separated, e.g. '0,1')"
   type        = string
-  default     = "\"device=0,1\""
+  default     = "0,1"
+}
+
+variable "vllm_embedding_gpus" {
+  description = "GPU device for vLLM embedding (single index, e.g. '2')"
+  type        = string
+  default     = "2"
 }

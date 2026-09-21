@@ -218,11 +218,12 @@ resource "docker_container" "vllm_generate" {
   image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
   restart  = "unless-stopped"
   runtime  = "nvidia"
-  gpus     = var.vllm_gpus
   ipc_mode = "private"
   shm_size = 16384
 
   env = [
+    "NVIDIA_VISIBLE_DEVICES=${var.vllm_gpus}",
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
     "VLLM_WORKER_MULTIPROC_METHOD=spawn",
     "VLLM_SKIP_P2P_CHECK=1",
     "NCCL_P2P_DISABLE=1",
@@ -267,6 +268,49 @@ resource "docker_container" "vllm_generate" {
   upload {
     file    = "/chat-template/chat_template.jinja"
     content = file("${path.module}/vllm-generate/chat_template.jinja")
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+resource "docker_container" "vllm_embedding" {
+  name     = "kb_vllm_embedding"
+  image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
+  restart  = "unless-stopped"
+  runtime  = "nvidia"
+  ipc_mode = "private"
+  shm_size = 16384
+
+  env = [
+    "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+  ]
+
+  command = [
+    local.model_path,
+    "--host", "0.0.0.0",
+    "--served-model-name", "default",
+    "--tensor-parallel-size", "1",
+    "--gpu-memory-utilization", "0.9",
+    "--max-num-seqs", "4",
+    "--runner", "pooling",
+    "--convert", "embed",
+    "--trust-remote-code",
+    "--hf-overrides", jsonencode({
+      model_type = "deepseek_v3"
+      auto_map   = null
+    }),
+    "--pooler-config", jsonencode({
+      pooling_type   = "MEAN"
+      use_activation = true
+    }),
+  ]
+
+  volumes {
+    container_path = local.model_path
+    volume_name    = docker_volume.models["embedding"].name
   }
 
   networks_advanced {
