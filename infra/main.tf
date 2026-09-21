@@ -213,6 +213,67 @@ resource "docker_container" "keycloak" {
   }
 }
 
+resource "docker_container" "vllm_generate" {
+  name     = "kb_vllm_generate"
+  image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
+  restart  = "unless-stopped"
+  runtime  = "nvidia"
+  gpus     = var.vllm_gpus
+  ipc_mode = "private"
+  shm_size = 16384
+
+  env = [
+    "VLLM_WORKER_MULTIPROC_METHOD=spawn",
+    "VLLM_SKIP_P2P_CHECK=1",
+    "NCCL_P2P_DISABLE=1",
+    "VLLM_NO_USAGE_STATS=1",
+    "OMP_NUM_THREADS=1",
+    "NCCL_CUMEM_ENABLE=0",
+    "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+  ]
+
+  command = [
+    local.model_path,
+    "--disable-custom-all-reduce",
+    "--quantization", "auto_round",
+    "--dtype", "float16",
+    "--override-generation-config", "{\"temperature\":0.6,\"top_p\":0.95,\"top_k\":20,\"min_p\":0.0,\"repetition_penalty\":1.0}",
+    "--host", "0.0.0.0",
+    "--port", "8000",
+    "--served-model-name", "default",
+    "--tool-call-parser", "qwen3_coder",
+    "--reasoning-parser", "qwen3",
+    "--default-chat-template-kwargs", "{\"enable_thinking\": false}",
+    "--chat-template", "/chat-template/chat_template.jinja",
+    "--enable-auto-tool-choice",
+    "--tensor-parallel-size", "2",
+    "--pipeline-parallel-size", "1",
+    "--max-model-len", "262144",
+    "--gpu-memory-utilization", "0.92",
+    "--max-num-seqs", "4",
+    "--max-num-batched-tokens", "8192",
+    "--kv-cache-dtype", "fp8_e4m3",
+    "--trust-remote-code",
+    "--enable-prefix-caching",
+    "--enable-chunked-prefill",
+    "--long-prefill-token-threshold", "0",
+  ]
+
+  volumes {
+    container_path = local.model_path
+    volume_name    = docker_volume.models["generate"].name
+  }
+
+  upload {
+    file    = "/chat-template/chat_template.jinja"
+    content = file("${path.module}/vllm-generate/chat_template.jinja")
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 locals {
   model_path = "/model"
   hf_models = {
