@@ -23,6 +23,16 @@ resource "docker_container" "nginx" {
     external = 80
   }
 
+  ports {
+    internal = 3000
+    external = 3000
+  }
+
+  ports {
+    internal = 8080
+    external = 8080
+  }
+
   upload {
     file    = "/etc/nginx/nginx.conf"
     content = file("${path.module}/nginx/nginx.conf")
@@ -30,7 +40,7 @@ resource "docker_container" "nginx" {
 
   upload {
     file    = "/etc/nginx/conf.d/default.conf"
-    content = file("${path.module}/nginx/default.conf")
+    content = templatefile("${path.module}/nginx/default.conf", { domain_name = var.domain_name })
   }
 
   upload {
@@ -61,6 +71,11 @@ resource "docker_container" "grafana" {
   name    = "kb-grafana"
   image   = "grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0"
   restart = "unless-stopped"
+
+  env = [
+    "GF_SERVER_ROOT_URL=http://${var.domain_name}:3000",
+    "GF_SERVER_DOMAIN=${var.domain_name}",
+  ]
 
   upload {
     file    = "/etc/grafana/provisioning/datasources/datasources.yml"
@@ -198,7 +213,8 @@ resource "docker_container" "keycloak" {
   command = [
     "start",
     "--http-enabled=true",
-    "--hostname=kb-keycloak.${var.domain_name}",
+    "--hostname=http://${var.domain_name}:8080",
+    "--proxy-headers=xforwarded",
     "--cache=local",
     "--health-enabled=true",
   ]
