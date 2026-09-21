@@ -5,7 +5,7 @@ datasources:
     type: tempo
     uid: tempo
     access: proxy
-    url: http://kb_tempo:3200
+    url: http://kb-tempo:3200
     jsonData:
       httpMethod: GET
       tracesToMetrics:
@@ -18,7 +18,7 @@ datasources:
     type: loki
     uid: loki
     access: proxy
-    url: http://kb_loki:3100
+    url: http://kb-loki:3100
     jsonData:
       derivedFields:
         - datasourceUid: tempo

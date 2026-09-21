@@ -12,7 +12,7 @@ otelcol.receiver.otlp "default" {
 
 otelcol.exporter.otlp "tempo" {
   client {
-    endpoint = "kb_tempo:4317"
+    endpoint = "kb-tempo:4317"
     tls {
       insecure = true
     }
@@ -21,14 +21,14 @@ otelcol.exporter.otlp "tempo" {
 
 loki.source.file "nginx_logs" {
   targets = [
-    { __path__ = "/var/log/nginx/access.log", job = "nginx", service_name = "kb_nginx" },
-    { __path__ = "/var/log/nginx/error.log",  job = "nginx", service_name = "kb_nginx" },
+    { __path__ = "/var/log/nginx/access.log", job = "nginx", service_name = "kb-nginx" },
+    { __path__ = "/var/log/nginx/error.log",  job = "nginx", service_name = "kb-nginx" },
   ]
   forward_to = [loki.write.loki.receiver]
 }
 
 loki.write "loki" {
   endpoint {
-    url = "http://kb_loki:3100/loki/api/v1/push"
+    url = "http://kb-loki:3100/loki/api/v1/push"
   }
 }

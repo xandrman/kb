@@ -1,18 +1,18 @@
 resource "docker_network" "dmz" {
-  name = "kb_dmz"
+  name = "kb-dmz"
 }
 
 resource "docker_network" "internal" {
-  name     = "kb_internal"
+  name     = "kb-internal"
   internal = true
 }
 
 resource "docker_volume" "nginx_logs" {
-  name = "kb_nginx_logs"
+  name = "kb-nginx-logs"
 }
 
 resource "docker_container" "nginx" {
-  name    = "kb_nginx"
+  name    = "kb-nginx"
   image   = "nginx:stable-alpine-otel@sha256:21f5b7af9dad45efdd63e231bb211f8c90abc54cbdd7ae783ab9855be5374428"
   restart = "unless-stopped"
 
@@ -58,7 +58,7 @@ resource "docker_container" "nginx" {
 }
 
 resource "docker_container" "grafana" {
-  name    = "kb_grafana"
+  name    = "kb-grafana"
   image   = "grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0"
   restart = "unless-stopped"
 
@@ -73,11 +73,11 @@ resource "docker_container" "grafana" {
 }
 
 resource "docker_volume" "tempo_data" {
-  name = "kb_tempo_data"
+  name = "kb-tempo-data"
 }
 
 resource "docker_container" "tempo" {
-  name    = "kb_tempo"
+  name    = "kb-tempo"
   image   = "grafana/tempo:3.0.3@sha256:0296560ac66f8a3600d7fb3014a52c189d4d9c3549ad6ff441bf2409855d68d5"
   restart = "unless-stopped"
 
@@ -99,7 +99,7 @@ resource "docker_container" "tempo" {
 }
 
 resource "docker_container" "alloy" {
-  name    = "kb_alloy"
+  name    = "kb-alloy"
   image   = "grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839"
   restart = "unless-stopped"
 
@@ -122,11 +122,11 @@ resource "docker_container" "alloy" {
 }
 
 resource "docker_volume" "loki_data" {
-  name = "kb_loki_data"
+  name = "kb-loki-data"
 }
 
 resource "docker_container" "loki" {
-  name    = "kb_loki"
+  name    = "kb-loki"
   image   = "grafana/loki:3.7.8@sha256:81a6802ec4bd1b88c564494f06376889ed022998a188826190d26d2754ac2aae"
   restart = "unless-stopped"
   user    = "root"
@@ -149,15 +149,15 @@ resource "docker_container" "loki" {
 }
 
 resource "docker_volume" "keycloak_data" {
-  name = "kb_keycloak_data"
+  name = "kb-keycloak-data"
 }
 
 resource "docker_volume" "qdrant_data" {
-  name = "kb_qdrant_data"
+  name = "kb-qdrant-data"
 }
 
 resource "docker_container" "qdrant" {
-  name    = "kb_qdrant"
+  name    = "kb-qdrant"
   image   = "qdrant/qdrant:v1.19.1@sha256:0699e7733a6fa7fa7f6b95dcbed84ebb04584110da525cdfdef9f305c4f57738"
   restart = "unless-stopped"
 
@@ -172,11 +172,11 @@ resource "docker_container" "qdrant" {
 }
 
 resource "docker_volume" "neo4j_data" {
-  name = "kb_neo4j_data"
+  name = "kb-neo4j-data"
 }
 
 resource "docker_container" "neo4j" {
-  name    = "kb_neo4j"
+  name    = "kb-neo4j"
   image   = "neo4j:2026.08.1@sha256:d8f4c156caa3af76499134947deb11d13042e471d9733060449f2a01eb7a248e"
   restart = "unless-stopped"
 
@@ -191,7 +191,7 @@ resource "docker_container" "neo4j" {
 }
 
 resource "docker_container" "keycloak" {
-  name    = "kb_keycloak"
+  name    = "kb-keycloak"
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
   restart = "unless-stopped"
 
@@ -214,7 +214,7 @@ resource "docker_container" "keycloak" {
 }
 
 resource "docker_container" "vllm_generate" {
-  name     = "kb_vllm_generate"
+  name     = "kb-vllm-generate"
   image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
   restart  = "unless-stopped"
   runtime  = "nvidia"
@@ -231,8 +231,8 @@ resource "docker_container" "vllm_generate" {
     "OMP_NUM_THREADS=1",
     "NCCL_CUMEM_ENABLE=0",
     "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
-    "OTEL_SERVICE_NAME=kb_vllm_generate",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_SERVICE_NAME=kb-vllm-generate",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
@@ -261,7 +261,7 @@ resource "docker_container" "vllm_generate" {
     "--enable-prefix-caching",
     "--enable-chunked-prefill",
     "--long-prefill-token-threshold", "0",
-    "--otlp-traces-endpoint", "http://kb_alloy:4317",
+    "--otlp-traces-endpoint", "http://kb-alloy:4317",
   ]
 
   volumes {
@@ -280,7 +280,7 @@ resource "docker_container" "vllm_generate" {
 }
 
 resource "docker_container" "vllm_embedding" {
-  name     = "kb_vllm_embedding"
+  name     = "kb-vllm-embedding"
   image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
   restart  = "unless-stopped"
   runtime  = "nvidia"
@@ -290,8 +290,8 @@ resource "docker_container" "vllm_embedding" {
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
-    "OTEL_SERVICE_NAME=kb_vllm_embedding",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_SERVICE_NAME=kb-vllm-embedding",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
@@ -313,7 +313,7 @@ resource "docker_container" "vllm_embedding" {
       pooling_type   = "MEAN"
       use_activation = true
     }),
-    "--otlp-traces-endpoint", "http://kb_alloy:4317",
+    "--otlp-traces-endpoint", "http://kb-alloy:4317",
   ]
 
   volumes {
@@ -327,7 +327,7 @@ resource "docker_container" "vllm_embedding" {
 }
 
 resource "docker_container" "vllm_reranker" {
-  name     = "kb_vllm_reranker"
+  name     = "kb-vllm-reranker"
   image    = "vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
   restart  = "unless-stopped"
   runtime  = "nvidia"
@@ -337,8 +337,8 @@ resource "docker_container" "vllm_reranker" {
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_reranker_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
-    "OTEL_SERVICE_NAME=kb_vllm_reranker",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_SERVICE_NAME=kb-vllm-reranker",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
@@ -348,7 +348,7 @@ resource "docker_container" "vllm_reranker" {
     "--served-model-name", "default",
     "--gpu-memory-utilization", "0.4",
     "--runner", "pooling",
-    "--otlp-traces-endpoint", "http://kb_alloy:4317",
+    "--otlp-traces-endpoint", "http://kb-alloy:4317",
   ]
 
   volumes {
@@ -382,7 +382,7 @@ locals {
 resource "docker_volume" "models" {
   for_each = local.hf_models
 
-  name = "kb_models_${each.key}"
+  name = "kb-models-${each.key}"
 }
 
 resource "docker_image" "hf_cli" {
@@ -402,7 +402,7 @@ resource "docker_image" "hf_cli" {
 resource "docker_container" "hf_cli" {
   for_each = local.hf_models
 
-  name     = "kb_hf_cli_${each.key}"
+  name     = "kb-hf-cli-${each.key}"
   image    = docker_image.hf_cli.name
   attach   = true
   logs     = true
