@@ -67,6 +67,10 @@ resource "docker_container" "nginx" {
   }
 }
 
+resource "docker_volume" "grafana_data" {
+  name = "kb-grafana-data"
+}
+
 resource "docker_container" "grafana" {
   name    = "kb-grafana"
   image   = "grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0"
@@ -105,6 +109,11 @@ resource "docker_container" "grafana" {
   upload {
     file    = "/etc/grafana/provisioning/datasources/datasources.yml"
     content = file("${path.module}/grafana/datasources.yml")
+  }
+
+  volumes {
+    container_path = "/var/lib/grafana"
+    volume_name    = docker_volume.grafana_data.name
   }
 
   networks_advanced {
