@@ -35,12 +35,12 @@ resource "docker_container" "nginx" {
 
   upload {
     file    = "/etc/nginx/conf.d/grafana.conf"
-    content = file("${path.module}/nginx/grafana.conf")
+    content = templatefile("${path.module}/nginx/grafana.conf", { domain_name = var.domain_name })
   }
 
   upload {
     file    = "/etc/nginx/conf.d/keycloak.conf"
-    content = file("${path.module}/nginx/keycloak.conf")
+    content = templatefile("${path.module}/nginx/keycloak.conf", { domain_name = var.domain_name })
   }
 
   volumes {
@@ -198,7 +198,7 @@ resource "docker_container" "keycloak" {
   command = [
     "start",
     "--http-enabled=true",
-    "--hostname=kb-keycloak.localhost",
+    "--hostname=kb-keycloak.${var.domain_name}",
     "--cache=local",
     "--health-enabled=true",
   ]
