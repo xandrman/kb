@@ -21,3 +21,14 @@ variable "vllm_reranker_gpus" {
   type        = string
   default     = "3"
 }
+
+variable "keycloak_admin_username" {
+  description = "Bootstrap admin username for Keycloak (applied only on the first start with an empty database)"
+  type        = string
+}
+
+variable "keycloak_admin_password" {
+  description = "Bootstrap admin password for Keycloak (applied only on the first start with an empty database)"
+  type        = string
+  sensitive   = true
+}
