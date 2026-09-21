@@ -19,6 +19,12 @@
       "skillPath": "skills/create-agentsmd/SKILL.md",
       "computedHash": "bfbdbb76b17cca970d1d624e36ce72b6847860d740581c8865da796c1fef8552"
     },
+    "deploying-monitoring-stacks": {
+      "source": "jeremylongshore/tons-of-skills-marketplace",
+      "sourceType": "github",
+      "skillPath": "skills/.curated/deploying-monitoring-stacks/SKILL.md",
+      "computedHash": "1bdd3e71b5cbf5c7a6703468097ef7620c7b64a2c76babeac44b31574a2bbf4b"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
@@ -72,6 +78,12 @@
       "sourceType": "github",
       "skillPath": "skills/nginx-configuration/SKILL.md",
       "computedHash": "30535fb54fb19ddcbad3697da291fbd22ea60f0c245d55be41ae9043f68bfd4a"
+    },
+    "prometheus-monitoring": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/prometheus-monitoring/SKILL.md",
+      "computedHash": "a3232fb8663e7ea0f140af73bd760c8116053cfdf886d4ba63b3cad25d191c42"
     },
     "qdrant-advisor": {
       "source": "qdrant/skills",
