@@ -231,6 +231,9 @@ resource "docker_container" "vllm_generate" {
     "OMP_NUM_THREADS=1",
     "NCCL_CUMEM_ENABLE=0",
     "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+    "OTEL_SERVICE_NAME=kb_vllm_generate",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
   command = [
@@ -258,6 +261,7 @@ resource "docker_container" "vllm_generate" {
     "--enable-prefix-caching",
     "--enable-chunked-prefill",
     "--long-prefill-token-threshold", "0",
+    "--otlp-traces-endpoint", "http://kb_alloy:4317",
   ]
 
   volumes {
@@ -286,6 +290,9 @@ resource "docker_container" "vllm_embedding" {
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+    "OTEL_SERVICE_NAME=kb_vllm_embedding",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
   command = [
@@ -306,6 +313,7 @@ resource "docker_container" "vllm_embedding" {
       pooling_type   = "MEAN"
       use_activation = true
     }),
+    "--otlp-traces-endpoint", "http://kb_alloy:4317",
   ]
 
   volumes {
@@ -329,6 +337,9 @@ resource "docker_container" "vllm_reranker" {
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_reranker_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+    "OTEL_SERVICE_NAME=kb_vllm_reranker",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb_alloy:4317",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
   ]
 
   command = [
@@ -337,6 +348,7 @@ resource "docker_container" "vllm_reranker" {
     "--served-model-name", "default",
     "--gpu-memory-utilization", "0.4",
     "--runner", "pooling",
+    "--otlp-traces-endpoint", "http://kb_alloy:4317",
   ]
 
   volumes {
