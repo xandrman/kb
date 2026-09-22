@@ -5,11 +5,15 @@ namespace Tests\Feature;
 use App\Mcp\Servers\McpServer;
 use App\Mcp\Tools\ExampleTool;
 use App\Mcp\Tools\PingTool;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Tests\TestCase;
 
 class McpServerTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_it_registers_its_tools(): void
     {
         McpServer::tools()
@@ -32,10 +36,11 @@ class McpServerTest extends TestCase
 
     public function test_legacy_ping_returns_an_empty_result(): void
     {
-        $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping'], [
-            'Accept' => 'application/json, text/event-stream',
-            'MCP-Protocol-Version' => '2025-06-18',
-        ])
+        $this->actingAs(User::factory()->create(), 'mcp')
+            ->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping'], [
+                'Accept' => 'application/json, text/event-stream',
+                'MCP-Protocol-Version' => '2025-06-18',
+            ])
             ->assertOk()
             ->assertContent('{"jsonrpc":"2.0","id":1,"result":{}}');
     }

@@ -25,6 +25,9 @@ mcpServers:
     # title пропускает только [a-zA-Z0-9 ]
     title: "Knowledge Base"
     serverInstructions: true
+    # Токен Keycloak пользователя; права определяет kb-app по подписи токена (ADR-0024, FR-7)
+    headers:
+      Authorization: "Bearer {{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
 
 # Строгий белый список: SSRF-защита LibreChat по умолчанию блокирует внутренние имена вроде kb-nginx
 mcpSettings:

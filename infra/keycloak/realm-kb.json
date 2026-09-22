@@ -55,47 +55,28 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://${domain_name}/auth/keycloak/callback"],
-      "webOrigins": ["http://${domain_name}"],
+      "redirectUris": [
+        "http://${domain_name}/auth/keycloak/callback",
+        "https://${domain_name}/oauth/openid/callback"
+      ],
+      "webOrigins": ["http://${domain_name}", "https://${domain_name}"],
       "attributes": {
-        "post.logout.redirect.uris": "http://${domain_name}/*",
+        "post.logout.redirect.uris": "http://${domain_name}/*##https://${domain_name}/*",
         "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [
         {
-          "name": "realm roles",
+          "name": "kb-app audience",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "multivalued": "true",
-            "claim.name": "realm_access.roles",
-            "jsonType.label": "String",
-            "id.token.claim": "true",
+            "included.client.audience": "kb-app",
+            "id.token.claim": "false",
             "access.token.claim": "true",
-            "userinfo.token.claim": "true"
+            "introspection.token.claim": "true"
           }
-        }
-      ]
-    },
-    {
-      "clientId": "librechat",
-      "name": "LibreChat",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": false,
-      "secret": "${librechat_client_secret}",
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "redirectUris": ["https://${domain_name}/oauth/openid/callback"],
-      "webOrigins": ["https://${domain_name}"],
-      "attributes": {
-        "post.logout.redirect.uris": "https://${domain_name}/*"
-      },
-      "defaultClientScopes": ["openid", "profile", "email", "offline_access", "web-origins"],
-      "protocolMappers": [
+        },
         {
           "name": "realm roles",
           "protocol": "openid-connect",

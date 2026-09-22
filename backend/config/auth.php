@@ -42,6 +42,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'mcp' => [
+            'driver' => 'keycloak-bearer',
+            'provider' => 'users',
+        ],
     ],
 
     /*

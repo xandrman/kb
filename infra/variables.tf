@@ -96,12 +96,6 @@ variable "librechat_jwt_refresh_secret" {
   sensitive   = true
 }
 
-variable "librechat_oauth_client_secret" {
-  description = "Client secret of the 'librechat' OIDC client in the 'kb' Keycloak realm"
-  type        = string
-  sensitive   = true
-}
-
 variable "librechat_session_secret" {
   description = "OpenID session storage secret for LibreChat (generate: openssl rand -hex 32)"
   type        = string

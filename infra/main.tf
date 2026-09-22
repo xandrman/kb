@@ -69,7 +69,7 @@ resource "docker_container" "nginx" {
   }
 
   upload {
-    file    = "/etc/nginx/conf.d/kb-app.conf"
+    file = "/etc/nginx/conf.d/kb-app.conf"
     content = templatefile("${path.module}/nginx/kb-app.conf", {
       internal_subnet  = one(docker_network.internal.ipam_config).subnet
       internal_gateway = one(docker_network.internal.ipam_config).gateway
@@ -548,12 +548,11 @@ resource "docker_container" "keycloak" {
   upload {
     file = "/opt/keycloak/data/import/realm-kb.json"
     content = templatefile("${path.module}/keycloak/realm-kb.json", {
-      domain_name             = var.domain_name
-      grafana_client_secret   = var.grafana_oauth_client_secret
-      app_client_secret       = var.app_oauth_client_secret
-      librechat_client_secret = var.librechat_oauth_client_secret
-      seed_username           = var.keycloak_seed_username
-      seed_password           = var.keycloak_seed_password
+      domain_name           = var.domain_name
+      grafana_client_secret = var.grafana_oauth_client_secret
+      app_client_secret     = var.app_oauth_client_secret
+      seed_username         = var.keycloak_seed_username
+      seed_password         = var.keycloak_seed_password
     })
   }
 
@@ -898,8 +897,11 @@ resource "docker_container" "librechat" {
     # а создание аккаунта при первом входе — при ALLOW_SOCIAL_REGISTRATION=true. Доступ при этом закреплён
     # за Keycloak (realm kb + OPENID_REQUIRED_ROLE), локальная email-регистрация и email-вход выключены.
     "OPENID_ISSUER=https://${var.domain_name}:8080/realms/kb",
-    "OPENID_CLIENT_ID=librechat",
-    "OPENID_CLIENT_SECRET=${var.librechat_oauth_client_secret}",
+    # Клиент kb-app общий с Laravel: токен LibreChat адресован kb-app (aud) и принимается на /mcp.
+    # Клиент требует PKCE S256.
+    "OPENID_CLIENT_ID=kb-app",
+    "OPENID_CLIENT_SECRET=${var.app_oauth_client_secret}",
+    "OPENID_USE_PKCE=true",
     "OPENID_SESSION_SECRET=${var.librechat_session_secret}",
     "OPENID_CALLBACK_URL=/oauth/openid/callback",
     "OPENID_SCOPE=openid profile email offline_access",
