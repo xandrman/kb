@@ -432,6 +432,12 @@ resource "docker_container" "app" {
     "OTEL_SERVICE_NAME=kb-app",
     "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_INSECURE=true",
+    # Issuer совпадает с --hostname Keycloak: и браузер, и kb-app ходят по domain_name:8080 (алиас kb-nginx в kb-internal)
+    "KEYCLOAK_BASE_URL=http://${var.domain_name}:8080",
+    "KEYCLOAK_REALM=kb",
+    "KEYCLOAK_CLIENT_ID=kb-app",
+    "KEYCLOAK_CLIENT_SECRET=${var.app_oauth_client_secret}",
+    "KEYCLOAK_REDIRECT_URI=http://${var.domain_name}/auth/keycloak/callback",
   ]
 
   upload {
