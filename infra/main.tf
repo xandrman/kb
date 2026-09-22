@@ -16,6 +16,8 @@ resource "docker_container" "nginx" {
   image   = "nginx:stable-alpine-otel@sha256:21f5b7af9dad45efdd63e231bb211f8c90abc54cbdd7ae783ab9855be5374428"
   restart = "unless-stopped"
 
+  depends_on = [docker_container.app]
+
   command = ["/bin/sh", "-c", "rm -f /var/log/nginx/access.log /var/log/nginx/error.log && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
 
   ports {
@@ -56,6 +58,12 @@ resource "docker_container" "nginx" {
   volumes {
     container_path = "/var/log/nginx"
     volume_name    = docker_volume.nginx_logs.name
+  }
+
+  volumes {
+    container_path = "/var/www/html/public"
+    volume_name    = docker_volume.app_public.name
+    read_only      = true
   }
 
   networks_advanced {
@@ -327,6 +335,84 @@ resource "docker_container" "redis" {
     volume_name    = docker_volume.redis_data.name
   }
 
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+# Заполняется из образа kb-app при первом подключении; после пересборки образа том пересоздаётся отдельно
+resource "docker_volume" "app_public" {
+  name = "kb-app-public"
+}
+
+resource "docker_image" "app" {
+  name = "kb-app:1.0.0"
+
+  build {
+    context     = "${path.module}/../backend"
+    dockerfile  = "Dockerfile"
+    pull_parent = true
+  }
+
+  triggers = {
+    dockerfile   = filesha256("${path.module}/../backend/Dockerfile")
+    composerlock = filesha256("${path.module}/../backend/composer.lock")
+  }
+}
+
+resource "docker_container" "app" {
+  name    = "kb-app"
+  image   = docker_image.app.image_id
+  restart = "unless-stopped"
+
+  depends_on = [docker_container.postgres, docker_container.redis]
+
+  env = [
+    "APP_ENV=production",
+    "APP_DEBUG=false",
+    "APP_KEY=${var.app_key}",
+    "APP_URL=http://${var.domain_name}",
+    "LOG_CHANNEL=stderr",
+    # Bootstrap-роль PostgreSQL: она же владелец таблиц. ADR-0014 требует для приложения роль-невладельца — заводится вместе с первой политикой RLS
+    "DB_CONNECTION=pgsql",
+    "DB_HOST=kb-postgres",
+    "DB_PORT=5432",
+    "DB_DATABASE=${var.postgres_db}",
+    "DB_USERNAME=${var.postgres_user}",
+    "DB_PASSWORD=${var.postgres_password}",
+    "REDIS_HOST=kb-redis",
+    "REDIS_PORT=6379",
+    "QUEUE_CONNECTION=redis",
+    "CACHE_STORE=redis",
+    "SESSION_DRIVER=redis",
+    "OTEL_SERVICE_NAME=kb-app",
+    "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
+    "OTEL_EXPORTER_OTLP_INSECURE=true",
+  ]
+
+  upload {
+    file    = "/usr/local/etc/php-fpm.d/zz-kb.conf"
+    content = file("${path.module}/php-fpm/zz-kb.conf")
+  }
+
+  upload {
+    file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
+    content = file("${path.module}/php-fpm/zz-kb.ini")
+  }
+
+  volumes {
+    container_path = "/var/www/html/public"
+    volume_name    = docker_volume.app_public.name
+  }
+
+  healthcheck {
+    test     = ["CMD-SHELL", "nc -z 127.0.0.1 9000"]
+    interval = "10s"
+    timeout  = "3s"
+    retries  = 3
+  }
+
+  # Порты не публикуются (ТЗ 6.4): FastCGI доступен только из kb-internal, снаружи — через kb-nginx
   networks_advanced {
     name = docker_network.internal.name
   }

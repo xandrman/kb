@@ -71,3 +71,9 @@ variable "keycloak_seed_password" {
   type        = string
   sensitive   = true
 }
+
+variable "app_key" {
+  description = "Laravel APP_KEY of kb-app in 'base64:...' form; generate with 'php artisan key:generate --show'"
+  type        = string
+  sensitive   = true
+}

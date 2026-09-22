@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+.git
+.idea
+.phpunit.cache
+compose.yaml
+node_modules
+vendor
+tests
+database/*.sqlite*
+public/hot
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*.php
