@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "PHP Composer and Autoloading": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/languages/php/skills/php-composer-autoloading/SKILL.md",
+      "computedHash": "30d50a1bab47a41f232016fb2e7c27fd9106a17210e753450b026422e7917081"
+    },
     "alloy": {
       "source": "grafana/skills",
       "sourceType": "github",
