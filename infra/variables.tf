@@ -28,6 +28,22 @@ variable "docling_gpus" {
   default     = "3"
 }
 
+variable "postgres_db" {
+  description = "Name of the database created on the first start of PostgreSQL"
+  type        = string
+}
+
+variable "postgres_user" {
+  description = "Name of the bootstrap PostgreSQL role (owner of the database)"
+  type        = string
+}
+
+variable "postgres_password" {
+  description = "Password for the bootstrap PostgreSQL role (applied only on the first start with an empty data directory)"
+  type        = string
+  sensitive   = true
+}
+
 variable "keycloak_admin_username" {
   description = "Bootstrap admin username for Keycloak (applied only on the first start with an empty database)"
   type        = string

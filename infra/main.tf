@@ -287,6 +287,32 @@ resource "docker_container" "neo4j" {
   }
 }
 
+resource "docker_volume" "postgres_data" {
+  name = "kb-postgres-data"
+}
+
+resource "docker_container" "postgres" {
+  name    = "kb-postgres"
+  image   = "postgres:18.6-alpine@sha256:d8703cd7fba306b9fec9268ecedfa8a966846c053036a60e3635791957eb2f66"
+  restart = "unless-stopped"
+
+  env = [
+    "POSTGRES_DB=${var.postgres_db}",
+    "POSTGRES_USER=${var.postgres_user}",
+    "POSTGRES_PASSWORD=${var.postgres_password}",
+  ]
+
+  # В образе 18 PGDATA перенесён в /var/lib/postgresql/18/docker, том объявлен на /var/lib/postgresql
+  volumes {
+    container_path = "/var/lib/postgresql"
+    volume_name    = docker_volume.postgres_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_volume" "redis_data" {
   name = "kb-redis-data"
 }
@@ -543,7 +569,7 @@ resource "docker_container" "docling_worker" {
 }
 
 locals {
-  model_path = "/model"
+  model_path        = "/model"
   docling_redis_url = "redis://kb-redis:6379/1"
   docling_image     = "quay.io/docling-project/docling-serve-cu128:v1.34.0@sha256:0095f2171deb2f43f0914c198f37c51193dce3c280f95cd2e97023d7dea87176"
   hf_models = {
