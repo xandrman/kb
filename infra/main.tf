@@ -11,9 +11,27 @@ resource "docker_volume" "nginx_logs" {
   name = "kb-nginx-logs"
 }
 
+# Собирается поверх kb-app: public/ копируется из образа приложения, том для этого не нужен.
+# pull_parent здесь недопустим — --pull попытается стянуть kb-app из registry
+resource "docker_image" "nginx" {
+  name = "kb-nginx:1.0.0"
+
+  build {
+    context    = "${path.module}/nginx"
+    dockerfile = "Dockerfile"
+    build_args = { APP_IMAGE = docker_image.app.name }
+  }
+
+  # Любая пересборка приложения обязана пересобрать и nginx, иначе копии public/ разойдутся
+  triggers = {
+    app        = docker_image.app.image_id
+    dockerfile = filesha256("${path.module}/nginx/Dockerfile")
+  }
+}
+
 resource "docker_container" "nginx" {
   name    = "kb-nginx"
-  image   = "nginx:stable-alpine-otel@sha256:21f5b7af9dad45efdd63e231bb211f8c90abc54cbdd7ae783ab9855be5374428"
+  image   = docker_image.nginx.image_id
   restart = "unless-stopped"
 
   depends_on = [docker_container.app]
@@ -58,12 +76,6 @@ resource "docker_container" "nginx" {
   volumes {
     container_path = "/var/log/nginx"
     volume_name    = docker_volume.nginx_logs.name
-  }
-
-  volumes {
-    container_path = "/var/www/html/public"
-    volume_name    = docker_volume.app_public.name
-    read_only      = true
   }
 
   networks_advanced {
@@ -340,11 +352,6 @@ resource "docker_container" "redis" {
   }
 }
 
-# Заполняется из образа kb-app при первом подключении; после пересборки образа том пересоздаётся отдельно
-resource "docker_volume" "app_public" {
-  name = "kb-app-public"
-}
-
 resource "docker_image" "app" {
   name = "kb-app:1.0.0"
 
@@ -357,6 +364,7 @@ resource "docker_image" "app" {
   triggers = {
     dockerfile   = filesha256("${path.module}/../backend/Dockerfile")
     composerlock = filesha256("${path.module}/../backend/composer.lock")
+    packagelock  = filesha256("${path.module}/../backend/package-lock.json")
   }
 }
 
@@ -398,11 +406,6 @@ resource "docker_container" "app" {
   upload {
     file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
     content = file("${path.module}/php-fpm/zz-kb.ini")
-  }
-
-  volumes {
-    container_path = "/var/www/html/public"
-    volume_name    = docker_volume.app_public.name
   }
 
   healthcheck {
