@@ -22,10 +22,10 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://${domain_name}:3000/login/generic_oauth"],
-      "webOrigins": ["http://${domain_name}:3000"],
+      "redirectUris": ["https://${domain_name}:3000/login/generic_oauth"],
+      "webOrigins": ["https://${domain_name}:3000"],
       "attributes": {
-        "post.logout.redirect.uris": "http://${domain_name}:3000/*"
+        "post.logout.redirect.uris": "https://${domain_name}:3000/*"
       },
       "protocolMappers": [
         {

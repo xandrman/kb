@@ -154,7 +154,7 @@ resource "docker_container" "grafana" {
   restart = "unless-stopped"
 
   env = [
-    "GF_SERVER_ROOT_URL=http://${var.domain_name}:3000",
+    "GF_SERVER_ROOT_URL=https://${var.domain_name}:3000",
     "GF_SERVER_DOMAIN=${var.domain_name}",
 
     "GF_AUTH_DISABLE_LOGIN_FORM=true",
@@ -169,7 +169,7 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_USE_PKCE=true",
     "GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true",
 
-    "GF_AUTH_GENERIC_OAUTH_AUTH_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/auth",
+    "GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://${var.domain_name}:8080/realms/kb/protocol/openid-connect/auth",
     "GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/token",
     "GF_AUTH_GENERIC_OAUTH_API_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/userinfo",
 
@@ -180,7 +180,7 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true",
     "GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN=true",
 
-    "GF_AUTH_SIGNOUT_REDIRECT_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("http://${var.domain_name}:3000/login")}&client_id=grafana",
+    "GF_AUTH_SIGNOUT_REDIRECT_URL=https://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("https://${var.domain_name}:3000/login")}&client_id=grafana",
   ]
 
   upload {
@@ -487,7 +487,7 @@ resource "docker_container" "app" {
     "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_INSECURE=true",
     # Issuer совпадает с --hostname Keycloak: и браузер, и kb-app ходят по domain_name:8080 (алиас kb-nginx в kb-internal)
-    "KEYCLOAK_BASE_URL=http://${var.domain_name}:8080",
+    "KEYCLOAK_BASE_URL=https://${var.domain_name}:8080",
     "KEYCLOAK_REALM=kb",
     "KEYCLOAK_CLIENT_ID=kb-app",
     "KEYCLOAK_CLIENT_SECRET=${var.app_oauth_client_secret}",
@@ -531,7 +531,7 @@ resource "docker_container" "keycloak" {
     "start",
     "--import-realm",
     "--http-enabled=true",
-    "--hostname=http://${var.domain_name}:8080",
+    "--hostname=https://${var.domain_name}:8080",
     "--proxy-headers=xforwarded",
     "--cache=local",
     "--health-enabled=true",
@@ -889,7 +889,7 @@ resource "docker_container" "librechat" {
     # Кнопка OpenID/Keycloak у LibreChat — "social login": показывается только при ALLOW_SOCIAL_LOGIN=true,
     # а создание аккаунта при первом входе — при ALLOW_SOCIAL_REGISTRATION=true. Доступ при этом закреплён
     # за Keycloak (realm kb + OPENID_REQUIRED_ROLE), локальная email-регистрация и email-вход выключены.
-    "OPENID_ISSUER=http://${var.domain_name}:8080/realms/kb",
+    "OPENID_ISSUER=https://${var.domain_name}:8080/realms/kb",
     "OPENID_CLIENT_ID=librechat",
     "OPENID_CLIENT_SECRET=${var.librechat_oauth_client_secret}",
     "OPENID_SESSION_SECRET=${var.librechat_session_secret}",
