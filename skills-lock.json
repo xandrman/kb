@@ -13,6 +13,12 @@
       "skillPath": "skills/grafana-core/alloy/SKILL.md",
       "computedHash": "5bf0f25414e5ffa56350c73ad9676c98912e1c34ff6f075e326d6bce3d793ee8"
     },
+    "certbot": {
+      "source": "g1joshi/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security/certbot/SKILL.md",
+      "computedHash": "1d2ed5e198a828bbd60d9a8c50c14c6aeb505fd0df0b870f5a2fe6bc6d7bbdcb"
+    },
     "commit-message-storyteller": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
