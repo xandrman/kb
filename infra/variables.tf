@@ -83,3 +83,15 @@ variable "app_key" {
   type        = string
   sensitive   = true
 }
+
+variable "librechat_jwt_secret" {
+  description = "JWT signing secret for LibreChat session tokens (generate: openssl rand -hex 32)"
+  type        = string
+  sensitive   = true
+}
+
+variable "librechat_jwt_refresh_secret" {
+  description = "JWT refresh token secret for LibreChat (generate: openssl rand -hex 32)"
+  type        = string
+  sensitive   = true
+}

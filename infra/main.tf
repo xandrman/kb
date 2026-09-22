@@ -827,3 +827,70 @@ resource "docker_container" "hf_cli" {
     }
   }
 }
+
+resource "docker_volume" "librechat_data" {
+  name = "kb-librechat-data"
+}
+
+resource "docker_volume" "librechat_mongo_data" {
+  name = "kb-librechat-mongo-data"
+}
+
+resource "docker_image" "librechat" {
+  name = "kb-librechat:1.0.0"
+
+  build {
+    context    = "${path.module}/librechat"
+    dockerfile = "Dockerfile"
+  }
+
+  triggers = {
+    dockerfile = filesha256("${path.module}/librechat/Dockerfile")
+  }
+}
+
+resource "docker_container" "librechat_mongo" {
+  name    = "kb-librechat-mongo"
+  image   = "mongo:8.0.20"
+  restart = "unless-stopped"
+
+  command = ["mongod", "--noauth"]
+
+  volumes {
+    container_path = "/data/db"
+    volume_name    = docker_volume.librechat_mongo_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+resource "docker_container" "librechat" {
+  name    = "kb-librechat"
+  image   = docker_image.librechat.image_id
+  restart = "unless-stopped"
+
+  depends_on = [docker_container.librechat_mongo]
+
+  env = [
+    "HOST=0.0.0.0",
+    "PORT=3080",
+    "MONGO_URI=mongodb://kb-librechat-mongo:27017/LibreChat",
+    "JWT_SECRET=${var.librechat_jwt_secret}",
+    "JWT_REFRESH_SECRET=${var.librechat_jwt_refresh_secret}",
+    "DOMAIN_CLIENT=https://${var.domain_name}",
+    "DOMAIN_SERVER=https://${var.domain_name}",
+    "TRUST_PROXY=1",
+    "SESSION_COOKIE_SECURE=true",
+  ]
+
+  volumes {
+    container_path = "/app/uploads"
+    volume_name    = docker_volume.librechat_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
