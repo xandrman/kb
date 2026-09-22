@@ -124,7 +124,7 @@
       "credentials": [
         { "type": "password", "value": "${seed_password}", "temporary": false }
       ],
-      "realmRoles": ["kb-admin"]
+      "realmRoles": ["default-roles-kb", "kb-admin"]
     }
   ]
 }
