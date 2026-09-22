@@ -78,6 +78,11 @@ resource "docker_container" "nginx" {
     volume_name    = docker_volume.nginx_logs.name
   }
 
+  volumes {
+    container_path = "/var/www/acme"
+    volume_name    = docker_volume.acme_webroot.name
+  }
+
   networks_advanced {
     name = docker_network.dmz.name
   }
@@ -87,6 +92,43 @@ resource "docker_container" "nginx" {
   networks_advanced {
     name    = docker_network.internal.name
     aliases = [var.domain_name]
+  }
+}
+
+resource "docker_volume" "certbot_data" {
+  name = "kb-certbot-data"
+}
+
+# Общий webroot для ACME HTTP-01: certbot кладёт файл челленджа, nginx его обслуживает.
+# Один том в обоих контейнерах по одному пути — файл, который пишет certbot, отдаёт nginx.
+resource "docker_volume" "acme_webroot" {
+  name = "kb-acme-webroot"
+}
+
+# certbot в DMZ: исходящий доступ к ACME-серверу Let's Encrypt. certonly идемпотентен —
+# выпускает сертификат, когда его нет, renew-ит, когда срок < 30 дней, иначе no-op.
+resource "docker_container" "certbot" {
+  name    = "kb-certbot"
+  image   = "certbot/certbot:v5.8.0@sha256:f70ad0adbb7e117f0fe42a63c553f28ea451edabc0148757b6efcd9735acaa20"
+  restart = "unless-stopped"
+
+  # ENTRYPOINT образа — сам бинарник certbot, поэтому shell-цикл должен жить в entrypoint, а не в command
+  entrypoint = ["/bin/sh", "-c"]
+
+  command = ["while :; do certbot certonly --webroot -w /var/www/acme -d ${var.domain_name} --non-interactive --agree-tos --register-unsafely-without-email; sleep 86400; done"]
+
+  volumes {
+    container_path = "/etc/letsencrypt"
+    volume_name    = docker_volume.certbot_data.name
+  }
+
+  volumes {
+    container_path = "/var/www/acme"
+    volume_name    = docker_volume.acme_webroot.name
+  }
+
+  networks_advanced {
+    name = docker_network.dmz.name
   }
 }
 
