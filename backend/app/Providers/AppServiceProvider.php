@@ -5,7 +5,10 @@ namespace App\Providers;
 use App\Http\Responses\KeycloakLogoutResponse;
 use App\Socialite\KeycloakProvider;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
@@ -27,5 +30,9 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SocialiteWasCalled::class, function (SocialiteWasCalled $event): void {
             $event->extendSocialite('keycloak', KeycloakProvider::class);
         });
+
+        RateLimiter::for('mcp', fn (Request $request) => Limit::perMinute(60)->by(
+            $request->user()?->getAuthIdentifier() ?: $request->ip()
+        ));
     }
 }
