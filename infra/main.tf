@@ -119,8 +119,8 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username",
     "GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email",
     "GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name",
-    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(realm_access.roles[*], 'grafana-admin') && 'GrafanaAdmin' || contains(realm_access.roles[*], 'grafana-editor') && 'Editor' || 'Viewer'",
-    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=false",
+    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(realm_access.roles[*], 'kb-admin') && 'GrafanaAdmin' || ''",
+    "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true",
     "GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN=true",
 
     "GF_AUTH_SIGNOUT_REDIRECT_URL=http://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("http://${var.domain_name}:3000/login")}&client_id=grafana",
@@ -479,6 +479,7 @@ resource "docker_container" "keycloak" {
     content = templatefile("${path.module}/keycloak/realm-kb.json", {
       domain_name           = var.domain_name
       grafana_client_secret = var.grafana_oauth_client_secret
+      app_client_secret     = var.app_oauth_client_secret
       seed_username         = var.keycloak_seed_username
       seed_password         = var.keycloak_seed_password
     })

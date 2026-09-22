@@ -61,8 +61,14 @@ variable "grafana_oauth_client_secret" {
   sensitive   = true
 }
 
+variable "app_oauth_client_secret" {
+  description = "Client secret of the 'kb-app' OIDC client in the 'kb' Keycloak realm"
+  type        = string
+  sensitive   = true
+}
+
 variable "keycloak_seed_username" {
-  description = "Seed user in the 'kb' realm, granted the grafana-admin role (lab bootstrap)"
+  description = "Seed user in the 'kb' realm, granted the kb-admin role (lab bootstrap)"
   type        = string
 }
 
