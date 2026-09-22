@@ -115,6 +115,12 @@
       "skillPath": "skills/qdrant-deployment-options/SKILL.md",
       "computedHash": "9248f190e22910b3264db056a573e0b2c1098d070b6c3eff7926e5e129787d29"
     },
+    "socialite-development": {
+      "source": "laravel/socialite",
+      "sourceType": "github",
+      "skillPath": "resources/boost/skills/socialite-development/SKILL.md",
+      "computedHash": "a87739bd8e6182c174be68c07c7be4ff94705aa6b4b575cff61a496bc87d65d9"
+    },
     "tempo": {
       "source": "grafana/skills",
       "sourceType": "github",
