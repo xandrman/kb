@@ -79,6 +79,12 @@
       "skillPath": "laravel/SKILL.md",
       "computedHash": "d86bd752cb0495dc126cab91931bceee934f6c0cb9a7f4a9dd09cf549045fc58"
     },
+    "librechat-docs": {
+      "source": "librechat-ai/librechat.ai",
+      "sourceType": "github",
+      "skillPath": "public/.well-known/agent-skills/librechat-docs/SKILL.md",
+      "computedHash": "fe8f1a04a653419e41dee01f8ba047654104a3eeaaf327a7abb993ea0499ad62"
+    },
     "loki": {
       "source": "grafana/skills",
       "sourceType": "github",
