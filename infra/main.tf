@@ -82,8 +82,11 @@ resource "docker_container" "nginx" {
     name = docker_network.dmz.name
   }
 
+  # kb-internal изолирована от внешней сети, а issuer Keycloak прибит к domain_name:8080.
+  # Алиас даёт kb-app тот же адрес Keycloak, что и браузеру: один base_url для /auth, /token и /userinfo
   networks_advanced {
-    name = docker_network.internal.name
+    name    = docker_network.internal.name
+    aliases = [var.domain_name]
   }
 }
 
