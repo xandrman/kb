@@ -905,7 +905,16 @@ resource "docker_container" "librechat" {
     "ALLOW_SOCIAL_REGISTRATION=true",
     "ALLOW_REGISTRATION=false",
     "ALLOW_EMAIL_LOGIN=false",
+    # Облачные эндпоинты выключены: остаются custom (kb-vllm-generate из librechat.yaml) и agents,
+    # через который LibreChat вызывает MCP-инструменты.
+    "ENDPOINTS=custom,agents",
+    "CONFIG_PATH=/app/librechat.yaml",
   ]
+
+  upload {
+    file    = "/app/librechat.yaml"
+    content = file("${path.module}/librechat/librechat.yaml")
+  }
 
   volumes {
     container_path = "/app/uploads"
