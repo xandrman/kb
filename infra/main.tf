@@ -352,19 +352,50 @@ resource "docker_container" "redis" {
   }
 }
 
+locals {
+  app_context = "${path.module}/../backend"
+
+  # Dockerfile копирует контекст целиком (COPY . .), поэтому пересборку обязан вызывать любой
+  # попадающий в образ файл: триггер по Dockerfile и lock-файлам пропускал правки в app/, config/ и routes/.
+  # Исключения — это backend/.dockerignore плюс storage/ и bootstrap/cache целиком: рантайм-состояние
+  # на содержимое образа не влияет. .env.example не хэшируется по той же причине
+  app_context_excluded = setunion(
+    fileset(local.app_context, "vendor/**"),
+    fileset(local.app_context, "node_modules/**"),
+    fileset(local.app_context, "tests/**"),
+    fileset(local.app_context, "storage/**"),
+    fileset(local.app_context, "bootstrap/cache/**"),
+    fileset(local.app_context, "public/build/**"),
+    fileset(local.app_context, "public/{css,js,fonts}/filament/**"),
+    fileset(local.app_context, "public/fonts-manifest.dev.json"),
+    fileset(local.app_context, "public/hot"),
+    fileset(local.app_context, "database/*.sqlite*"),
+    fileset(local.app_context, ".idea/**"),
+    fileset(local.app_context, ".phpunit.cache/**"),
+    fileset(local.app_context, ".phpunit.result.cache"),
+    fileset(local.app_context, ".env"),
+    fileset(local.app_context, ".env.*"),
+    fileset(local.app_context, "compose.yaml"),
+  )
+
+  # Имя файла входит в хэш вместе с содержимым — иначе переименование при том же наборе байт проходит незамеченным
+  app_source_hash = sha1(join("", [
+    for f in sort(setsubtract(fileset(local.app_context, "**"), local.app_context_excluded)) :
+    "${f}:${filesha256("${local.app_context}/${f}")}"
+  ]))
+}
+
 resource "docker_image" "app" {
   name = "kb-app:1.0.0"
 
   build {
-    context     = "${path.module}/../backend"
+    context     = local.app_context
     dockerfile  = "Dockerfile"
     pull_parent = true
   }
 
   triggers = {
-    dockerfile   = filesha256("${path.module}/../backend/Dockerfile")
-    composerlock = filesha256("${path.module}/../backend/composer.lock")
-    packagelock  = filesha256("${path.module}/../backend/package-lock.json")
+    source = local.app_source_hash
   }
 }
 
@@ -372,6 +403,8 @@ resource "docker_container" "app" {
   name    = "kb-app"
   image   = docker_image.app.image_id
   restart = "unless-stopped"
+
+  command = ["sh", "-c", "php artisan migrate --force && exec php-fpm"]
 
   depends_on = [docker_container.postgres, docker_container.redis]
 
