@@ -540,11 +540,12 @@ resource "docker_container" "keycloak" {
   upload {
     file = "/opt/keycloak/data/import/realm-kb.json"
     content = templatefile("${path.module}/keycloak/realm-kb.json", {
-      domain_name           = var.domain_name
-      grafana_client_secret = var.grafana_oauth_client_secret
-      app_client_secret     = var.app_oauth_client_secret
-      seed_username         = var.keycloak_seed_username
-      seed_password         = var.keycloak_seed_password
+      domain_name             = var.domain_name
+      grafana_client_secret   = var.grafana_oauth_client_secret
+      app_client_secret       = var.app_oauth_client_secret
+      librechat_client_secret = var.librechat_oauth_client_secret
+      seed_username           = var.keycloak_seed_username
+      seed_password           = var.keycloak_seed_password
     })
   }
 
@@ -883,6 +884,27 @@ resource "docker_container" "librechat" {
     "DOMAIN_SERVER=https://${var.domain_name}",
     "TRUST_PROXY=1",
     "SESSION_COOKIE_SECURE=true",
+    # OIDC-вход через Keycloak realm kb: issuer прибит к domain:8080 (алиас kb-nginx в kb-internal),
+    # поэтому и браузер, и бэкенд LibreChat ходят на один и тот же адрес /auth, /token, /userinfo.
+    # Кнопка OpenID/Keycloak у LibreChat — "social login": показывается только при ALLOW_SOCIAL_LOGIN=true,
+    # а создание аккаунта при первом входе — при ALLOW_SOCIAL_REGISTRATION=true. Доступ при этом закреплён
+    # за Keycloak (realm kb + OPENID_REQUIRED_ROLE), локальная email-регистрация и email-вход выключены.
+    "OPENID_ISSUER=http://${var.domain_name}:8080/realms/kb",
+    "OPENID_CLIENT_ID=librechat",
+    "OPENID_CLIENT_SECRET=${var.librechat_oauth_client_secret}",
+    "OPENID_SESSION_SECRET=${var.librechat_session_secret}",
+    "OPENID_CALLBACK_URL=/oauth/openid/callback",
+    "OPENID_SCOPE=openid profile email offline_access",
+    "OPENID_REUSE_TOKENS=true",
+    "OPENID_REQUIRED_ROLE=kb-admin",
+    "OPENID_REQUIRED_ROLE_TOKEN_KIND=access",
+    "OPENID_REQUIRED_ROLE_PARAMETER_PATH=realm_access.roles",
+    "OPENID_USE_END_SESSION_ENDPOINT=true",
+    "OPENID_POST_LOGOUT_REDIRECT_URI=https://${var.domain_name}/",
+    "ALLOW_SOCIAL_LOGIN=true",
+    "ALLOW_SOCIAL_REGISTRATION=true",
+    "ALLOW_REGISTRATION=false",
+    "ALLOW_EMAIL_LOGIN=false",
   ]
 
   volumes {
