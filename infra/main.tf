@@ -69,13 +69,21 @@ resource "docker_container" "nginx" {
   }
 
   upload {
-    file    = "/etc/nginx/conf.d/grafana.conf"
-    content = templatefile("${path.module}/nginx/grafana.conf", { domain_name = var.domain_name })
+    file    = "/etc/nginx/conf.d/kb-app.conf"
+    content = templatefile("${path.module}/nginx/kb-app.conf", {
+      internal_subnet  = one(docker_network.internal.ipam_config).subnet
+      internal_gateway = one(docker_network.internal.ipam_config).gateway
+    })
   }
 
   upload {
-    file    = "/etc/nginx/conf.d/keycloak.conf"
-    content = templatefile("${path.module}/nginx/keycloak.conf", { domain_name = var.domain_name })
+    file    = "/etc/nginx/conf.d/kb-grafana.conf"
+    content = templatefile("${path.module}/nginx/kb-grafana.conf", { domain_name = var.domain_name })
+  }
+
+  upload {
+    file    = "/etc/nginx/conf.d/kb-keycloak.conf"
+    content = templatefile("${path.module}/nginx/kb-keycloak.conf", { domain_name = var.domain_name })
   }
 
   volumes {
