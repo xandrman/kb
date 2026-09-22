@@ -44,6 +44,11 @@ resource "docker_container" "nginx" {
   }
 
   ports {
+    internal = 443
+    external = 443
+  }
+
+  ports {
     internal = 3000
     external = 3000
   }
@@ -81,6 +86,13 @@ resource "docker_container" "nginx" {
   volumes {
     container_path = "/var/www/acme"
     volume_name    = docker_volume.acme_webroot.name
+  }
+
+  # Серт и ключ Let's Encrypt из тома certbot; master-процесс nginx (root) читает ключ при загрузке конфига
+  volumes {
+    container_path = "/etc/letsencrypt"
+    volume_name    = docker_volume.certbot_data.name
+    read_only      = true
   }
 
   networks_advanced {
