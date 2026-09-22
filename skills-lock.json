@@ -25,6 +25,12 @@
       "skillPath": "skills/.curated/deploying-monitoring-stacks/SKILL.md",
       "computedHash": "1bdd3e71b5cbf5c7a6703468097ef7620c7b64a2c76babeac44b31574a2bbf4b"
     },
+    "filament-pro": {
+      "source": "marcelorodrigo/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/filament-pro/SKILL.md",
+      "computedHash": "8e7763e017b3cfbdbf16bd968cfdb62e138a7e89f9494766e1d91c4e339fcd5f"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
