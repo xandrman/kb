@@ -5,6 +5,16 @@
             "type": "remote",
             "url": "https://huggingface.co/mcp?login",
             "enabled": true
+        },
+        "laravel-boost": {
+            "type": "local",
+            "enabled": true,
+            "command": [
+                "vendor/bin/sail",
+                "artisan",
+                "boost:mcp"
+            ],
+            "cwd": "backend"
         }
     }
 }
