@@ -30,6 +30,16 @@ class McpServerTest extends TestCase
             ->assertSee('finished, ok!');
     }
 
+    public function test_legacy_ping_returns_an_empty_result(): void
+    {
+        $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'ping'], [
+            'Accept' => 'application/json, text/event-stream',
+            'MCP-Protocol-Version' => '2025-06-18',
+        ])
+            ->assertOk()
+            ->assertContent('{"jsonrpc":"2.0","id":1,"result":{}}');
+    }
+
     public function test_ping_tool_reports_the_server_is_reachable(): void
     {
         McpServer::tool(PingTool::class)

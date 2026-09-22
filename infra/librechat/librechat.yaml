@@ -16,3 +16,17 @@ endpoints:
       titleModel: "current_model"
       titleMessageRole: "user"
       modelDisplayLabel: "kb"
+
+# MCP-сервер Laravel (kb-app) за внутренним vhost kb-nginx, доступен только из kb-internal (ТЗ 6.4)
+mcpServers:
+  kb:
+    type: streamable-http
+    url: "http://kb-nginx/mcp"
+    # title пропускает только [a-zA-Z0-9 ]
+    title: "Knowledge Base"
+    serverInstructions: true
+
+# Строгий белый список: SSRF-защита LibreChat по умолчанию блокирует внутренние имена вроде kb-nginx
+mcpSettings:
+  allowedDomains:
+    - "kb-nginx"
