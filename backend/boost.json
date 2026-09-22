@@ -1,18 +1,24 @@
 {
     "agents": [
         "claude_code",
-        "junie"
+        "codex",
+        "cursor",
+        "junie",
+        "opencode"
     ],
-    "cloud": true,
+    "cloud": false,
     "guidelines": true,
     "mcp": true,
     "nightwatch": false,
+    "packages": [
+        "filament/filament"
+    ],
     "sail": true,
     "skills": [
         "infer-conventions",
-        "deploying-to-cloud",
         "laravel-best-practices",
         "testing-best-practices",
-        "tailwindcss-development"
+        "tailwindcss-development",
+        "filament-development"
     ]
 }
