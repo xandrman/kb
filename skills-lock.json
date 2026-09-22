@@ -67,6 +67,12 @@
       "skillPath": "skills/keycloak-administration/SKILL.md",
       "computedHash": "f2d09b4f4fd0ced095c82713bdab711257577291a2502a29143b3c3dd2b10cfa"
     },
+    "laravel": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "laravel/SKILL.md",
+      "computedHash": "d86bd752cb0495dc126cab91931bceee934f6c0cb9a7f4a9dd09cf549045fc58"
+    },
     "loki": {
       "source": "grafana/skills",
       "sourceType": "github",
