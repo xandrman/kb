@@ -287,6 +287,25 @@ resource "docker_container" "neo4j" {
   }
 }
 
+resource "docker_volume" "redis_data" {
+  name = "kb-redis-data"
+}
+
+resource "docker_container" "redis" {
+  name    = "kb-redis"
+  image   = "redis:8.10.2-alpine@sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23"
+  restart = "unless-stopped"
+
+  volumes {
+    container_path = "/data"
+    volume_name    = docker_volume.redis_data.name
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_container" "keycloak" {
   name    = "kb-keycloak"
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
