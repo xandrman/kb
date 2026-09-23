@@ -22,10 +22,10 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://${domain_name}:3000/login/generic_oauth"],
-      "webOrigins": ["https://${domain_name}:3000"],
+      "redirectUris": ["https://${domain_name}:8003/login/generic_oauth"],
+      "webOrigins": ["https://${domain_name}:8003"],
       "attributes": {
-        "post.logout.redirect.uris": "https://${domain_name}:3000/*"
+        "post.logout.redirect.uris": "https://${domain_name}:8003/*"
       },
       "protocolMappers": [
         {
@@ -56,12 +56,12 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://${domain_name}/auth/keycloak/callback",
+        "https://${domain_name}:8001/auth/keycloak/callback",
         "https://${domain_name}/oauth/openid/callback"
       ],
-      "webOrigins": ["http://${domain_name}", "https://${domain_name}"],
+      "webOrigins": ["https://${domain_name}:8001", "https://${domain_name}"],
       "attributes": {
-        "post.logout.redirect.uris": "http://${domain_name}/*##https://${domain_name}/*",
+        "post.logout.redirect.uris": "https://${domain_name}:8001/*##https://${domain_name}/*",
         "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [

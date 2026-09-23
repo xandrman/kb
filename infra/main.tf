@@ -50,13 +50,18 @@ resource "docker_container" "nginx" {
   }
 
   ports {
-    internal = 3000
-    external = 3000
+    internal = 8001
+    external = 8001
   }
 
   ports {
-    internal = 8080
-    external = 8080
+    internal = 8002
+    external = 8002
+  }
+
+  ports {
+    internal = 8003
+    external = 8003
   }
 
   upload {
@@ -74,6 +79,7 @@ resource "docker_container" "nginx" {
     content = templatefile("${path.module}/nginx/kb-app.conf", {
       internal_subnet  = one(docker_network.internal.ipam_config).subnet
       internal_gateway = one(docker_network.internal.ipam_config).gateway
+      domain_name      = var.domain_name
     })
   }
 
@@ -108,7 +114,7 @@ resource "docker_container" "nginx" {
     name = docker_network.dmz.name
   }
 
-  # kb-internal изолирована от внешней сети, а issuer Keycloak прибит к domain_name:8080.
+  # kb-internal изолирована от внешней сети, а issuer Keycloak прибит к domain_name:8002.
   # Алиас даёт kb-app тот же адрес Keycloak, что и браузеру: один base_url для /auth, /token и /userinfo
   networks_advanced {
     name    = docker_network.internal.name
@@ -199,7 +205,7 @@ resource "docker_container" "grafana" {
   restart = "unless-stopped"
 
   env = [
-    "GF_SERVER_ROOT_URL=https://${var.domain_name}:3000",
+    "GF_SERVER_ROOT_URL=https://${var.domain_name}:8003",
     "GF_SERVER_DOMAIN=${var.domain_name}",
 
     "GF_AUTH_DISABLE_LOGIN_FORM=true",
@@ -214,7 +220,7 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_USE_PKCE=true",
     "GF_AUTH_GENERIC_OAUTH_USE_REFRESH_TOKEN=true",
 
-    "GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://${var.domain_name}:8080/realms/kb/protocol/openid-connect/auth",
+    "GF_AUTH_GENERIC_OAUTH_AUTH_URL=https://${var.domain_name}:8002/realms/kb/protocol/openid-connect/auth",
     "GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/token",
     "GF_AUTH_GENERIC_OAUTH_API_URL=http://kb-keycloak:8080/realms/kb/protocol/openid-connect/userinfo",
 
@@ -225,7 +231,7 @@ resource "docker_container" "grafana" {
     "GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT=true",
     "GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN=true",
 
-    "GF_AUTH_SIGNOUT_REDIRECT_URL=https://${var.domain_name}:8080/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("https://${var.domain_name}:3000/login")}&client_id=grafana",
+    "GF_AUTH_SIGNOUT_REDIRECT_URL=https://${var.domain_name}:8002/realms/kb/protocol/openid-connect/logout?post_logout_redirect_uri=${urlencode("https://${var.domain_name}:8003/login")}&client_id=grafana",
   ]
 
   upload {
@@ -514,7 +520,7 @@ resource "docker_container" "app" {
     "APP_ENV=production",
     "APP_DEBUG=false",
     "APP_KEY=${var.app_key}",
-    "APP_URL=http://${var.domain_name}",
+    "APP_URL=https://${var.domain_name}:8001",
     "LOG_CHANNEL=stderr",
     # Bootstrap-роль PostgreSQL: она же владелец таблиц. ADR-0014 требует для приложения роль-невладельца — заводится вместе с первой политикой RLS
     "DB_CONNECTION=pgsql",
@@ -531,12 +537,12 @@ resource "docker_container" "app" {
     "OTEL_SERVICE_NAME=kb-app",
     "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_INSECURE=true",
-    # Issuer совпадает с --hostname Keycloak: и браузер, и kb-app ходят по domain_name:8080 (алиас kb-nginx в kb-internal)
-    "KEYCLOAK_BASE_URL=https://${var.domain_name}:8080",
+    # Issuer совпадает с --hostname Keycloak: и браузер, и kb-app ходят по domain_name:8002 (алиас kb-nginx в kb-internal)
+    "KEYCLOAK_BASE_URL=https://${var.domain_name}:8002",
     "KEYCLOAK_REALM=kb",
     "KEYCLOAK_CLIENT_ID=kb-app",
     "KEYCLOAK_CLIENT_SECRET=${var.app_oauth_client_secret}",
-    "KEYCLOAK_REDIRECT_URI=http://${var.domain_name}/auth/keycloak/callback",
+    "KEYCLOAK_REDIRECT_URI=https://${var.domain_name}:8001/auth/keycloak/callback",
   ]
 
   upload {
@@ -576,7 +582,7 @@ resource "docker_container" "keycloak" {
     "start",
     "--import-realm",
     "--http-enabled=true",
-    "--hostname=https://${var.domain_name}:8080",
+    "--hostname=https://${var.domain_name}:8002",
     "--proxy-headers=xforwarded",
     "--cache=local",
     "--health-enabled=true",
@@ -940,12 +946,12 @@ resource "docker_container" "librechat" {
     "DOMAIN_SERVER=https://${var.domain_name}",
     "TRUST_PROXY=1",
     "SESSION_COOKIE_SECURE=true",
-    # OIDC-вход через Keycloak realm kb: issuer прибит к domain:8080 (алиас kb-nginx в kb-internal),
+    # OIDC-вход через Keycloak realm kb: issuer прибит к domain:8002 (алиас kb-nginx в kb-internal),
     # поэтому и браузер, и бэкенд LibreChat ходят на один и тот же адрес /auth, /token, /userinfo.
     # Кнопка OpenID/Keycloak у LibreChat — "social login": показывается только при ALLOW_SOCIAL_LOGIN=true,
     # а создание аккаунта при первом входе — при ALLOW_SOCIAL_REGISTRATION=true. Доступ при этом закреплён
     # за Keycloak (realm kb + OPENID_REQUIRED_ROLE), локальная email-регистрация и email-вход выключены.
-    "OPENID_ISSUER=https://${var.domain_name}:8080/realms/kb",
+    "OPENID_ISSUER=https://${var.domain_name}:8002/realms/kb",
     # Клиент kb-app общий с Laravel: токен LibreChat адресован kb-app (aud) и принимается на /mcp.
     # Клиент требует PKCE S256.
     "OPENID_CLIENT_ID=kb-app",
