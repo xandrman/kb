@@ -507,6 +507,11 @@ resource "docker_image" "app" {
   }
 }
 
+# ADR-0018: оригиналы и результаты извлечения, адресация по sha256. Монтируется только в контейнеры PHP-слоя
+resource "docker_volume" "documents" {
+  name = "kb-documents"
+}
+
 resource "docker_container" "app" {
   name    = "kb-app"
   image   = docker_image.app.image_id
@@ -534,6 +539,7 @@ resource "docker_container" "app" {
     "QUEUE_CONNECTION=redis",
     "CACHE_STORE=redis",
     "SESSION_DRIVER=redis",
+    "DOCUMENTS_ROOT=/data/documents",
     "OTEL_SERVICE_NAME=kb-app",
     "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_INSECURE=true",
@@ -553,6 +559,12 @@ resource "docker_container" "app" {
   upload {
     file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
     content = file("${path.module}/php-fpm/zz-kb.ini")
+  }
+
+  # rw: kb-app — загрузчик админ-панели (ADR-0018). Nginx тома не видит — файлы отдаёт только PHP после проверки доступа
+  volumes {
+    container_path = "/data/documents"
+    volume_name    = docker_volume.documents.name
   }
 
   healthcheck {

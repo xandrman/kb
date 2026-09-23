@@ -47,6 +47,15 @@ return [
             'report' => false,
         ],
 
+        // ADR-0018: исходные документы по sha256. Без 'serve' и 'url' — файл отдаётся только контроллером
+        // после проверки доступа; 'throw' — несохранённый оригинал не должен пройти молча
+        'documents' => [
+            'driver' => 'local',
+            'root' => env('DOCUMENTS_ROOT', storage_path('app/documents')),
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

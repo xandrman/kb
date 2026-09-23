@@ -42,8 +42,11 @@ COPY --chown=www-data:www-data . .
 COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=frontend --chown=www-data:www-data /app/public/build ./public/build
 
+# /data/documents — точка монтирования kb-documents (ADR-0018): пустой том при первом подключении
+# наследует владельца каталога из образа, иначе php-fpm под www-data не сможет в него писать
 RUN php artisan package:discover --ansi \
     && php artisan filament:assets \
-    && chown -R www-data:www-data storage bootstrap/cache
+    && mkdir -p /data/documents \
+    && chown -R www-data:www-data storage bootstrap/cache /data/documents
 
 EXPOSE 9000
