@@ -6,6 +6,7 @@ use App\Actions\AnswerQuestion;
 use App\Enums\AccessLevel;
 use App\Neuron\KnowledgeBaseRag;
 use App\Neuron\Nodes\GroundedContextNode;
+use App\Neuron\PersonalDataDetector;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
@@ -24,6 +25,8 @@ class KnowledgeBaseAnswerTest extends TestCase
 
     private ?AccessLevel $retrievalClearance = null;
 
+    private ?string $retrievedFor = null;
+
     /**
      * @var list<Chunk>
      */
@@ -33,20 +36,25 @@ class KnowledgeBaseAnswerTest extends TestCase
     {
         parent::setUp();
 
+        $this->personalDataFound([]);
+
         $this->llm = new FakeAIProvider(new AssistantMessage('Измените частоту обновления экрана.'));
 
         $this->app->bind(KnowledgeBaseRag::class, function ($app, array $parameters): KnowledgeBaseRag {
             $this->retrievalClearance = $parameters['clearance'];
 
-            $retrieval = new class($this->retrieved) implements RetrievalInterface
+            $retrievedFor = &$this->retrievedFor;
+            $retrieval = new class($this->retrieved, $retrievedFor) implements RetrievalInterface
             {
                 /**
                  * @param  list<Chunk>  $chunks
                  */
-                public function __construct(private readonly array $chunks) {}
+                public function __construct(private readonly array $chunks, private ?string &$retrievedFor) {}
 
                 public function retrieve(Message $query): array
                 {
+                    $this->retrievedFor = (string) $query->getContent();
+
                     return $this->chunks;
                 }
             };
@@ -98,6 +106,21 @@ class KnowledgeBaseAnswerTest extends TestCase
         $this->llm->assertNothingSent();
     }
 
+    public function test_personal_data_in_the_question_reaches_neither_search_nor_model(): void
+    {
+        $this->personalDataFound([
+            ['text' => 'Каширин Кирилл', 'type' => 'person_name'],
+            ['text' => '+7 993 058 33 75', 'type' => 'phone'],
+        ]);
+        $this->retrieved = [$this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89)];
+
+        $this->answer(AccessLevel::Public, 'Клиент Каширин Кирилл, тел. +7 993 058 33 75: на мониторе полосы, что делать?');
+
+        $masked = 'Клиент [ФИО 1], тел. [ТЕЛЕФОН 1]: на мониторе полосы, что делать?';
+        $this->assertSame($masked, $this->retrievedFor);
+        $this->llm->assertSent(fn (RequestRecord $record): bool => $record->messages[array_key_last($record->messages)]->getContent() === $masked);
+    }
+
     public function test_retrieval_runs_with_the_given_clearance(): void
     {
         $this->answer(AccessLevel::Internal, 'Гарантия');
@@ -128,5 +151,15 @@ class KnowledgeBaseAnswerTest extends TestCase
         }
 
         return $chunk;
+    }
+
+    /**
+     * @param  list<array{text: string, type: string}>  $fragments  personal data the model finds in the question
+     */
+    private function personalDataFound(array $fragments): void
+    {
+        $this->app->bind(PersonalDataDetector::class, fn (): PersonalDataDetector => (new PersonalDataDetector)->setAiProvider(
+            new FakeAIProvider(new AssistantMessage(json_encode(['fragments' => $fragments], JSON_UNESCAPED_UNICODE))),
+        ));
     }
 }

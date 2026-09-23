@@ -8,6 +8,7 @@ use App\Mcp\Tools\AskKnowledgeBaseTool;
 use App\Models\Role;
 use App\Models\User;
 use App\Neuron\KnowledgeBaseRag;
+use App\Neuron\PersonalDataDetector;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -41,6 +42,8 @@ class AskKnowledgeBaseToolTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->personalDataFound([]);
 
         $this->app->instance(EmbeddingsProviderInterface::class, new class extends AbstractEmbeddingsProvider
         {
@@ -77,7 +80,7 @@ class AskKnowledgeBaseToolTest extends TestCase
             ->assertSentNotification('notifications/progress', ['progressToken' => null, 'progress' => 1, 'message' => 'Ищу в документах фрагменты по вопросу…'])
             ->assertSentNotification('notifications/progress', ['progressToken' => null, 'progress' => 2, 'message' => 'Ищу связи с «полосы на экране», «частота обновления»…'])
             ->assertSentNotification('notifications/progress', ['progressToken' => null, 'progress' => 3, 'message' => 'Проверяю, какие фрагменты отвечают на вопрос (найдено: 1)…'])
-            ->assertSentNotification('notifications/progress', ['progressToken' => null, 'progress' => 4, 'message' => 'Формирую ответ (источников: 1)…'])
+            ->assertSentNotification('notifications/progress', ['progressToken' => null, 'progress' => 4, 'message' => 'Формирую ответ…'])
             ->assertSee('Измените частоту обновления экрана.');
     }
 
@@ -136,6 +139,16 @@ class AskKnowledgeBaseToolTest extends TestCase
         $this->app->instance(QdrantVectorStore::class, new QdrantVectorStore(
             collectionUrl: 'http://qdrant.test/collections/chunks/',
             httpClient: new GuzzleHttpClient(handler: $stack),
+        ));
+    }
+
+    /**
+     * @param  list<array{text: string, type: string}>  $fragments  personal data the model finds in the question
+     */
+    private function personalDataFound(array $fragments): void
+    {
+        $this->app->bind(PersonalDataDetector::class, fn (): PersonalDataDetector => (new PersonalDataDetector)->setAiProvider(
+            new FakeAIProvider(new AssistantMessage(json_encode(['fragments' => $fragments], JSON_UNESCAPED_UNICODE))),
         ));
     }
 }

@@ -11,6 +11,8 @@ use NeuronAI\Chat\Messages\UserMessage;
 
 class AnswerQuestion
 {
+    public function __construct(private readonly MaskPersonalData $maskPersonalData) {}
+
     /**
      * Answer from the documents the clearance opens, or refuse when they hold no answer (FR-5, FR-7).
      *
@@ -20,6 +22,10 @@ class AnswerQuestion
      */
     public function handle(AccessLevel $clearance, string $question): Generator
     {
+        // Входной guardrail (FR-8): ПДн из вопроса не уходят ни в эмбеддинг, ни в реранкер, ни в LLM. Метки, а не удаление:
+        // на замере по вопросам с ФИО, телефоном, адресом и e-mail нужный фрагмент оставался первым, оценка не падала
+        $question = $this->maskPersonalData->handle($question)['text'];
+
         $rag = app(KnowledgeBaseRag::class, ['clearance' => $clearance]);
         $events = $rag->chat(new UserMessage($question))->events();
 
