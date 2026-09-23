@@ -24,7 +24,7 @@ enum DocumentStatus: string implements HasColor, HasLabel
             self::Pending => 'В очереди',
             self::Extracting => 'Извлечение',
             self::Extracted => 'Извлечён',
-            self::Indexed => 'Построение графа',
+            self::Indexed => 'Обработка фрагментов',
             self::Processed => 'Обработан',
             self::Failed => 'Ошибка',
             self::Duplicate => 'Дубликат',

@@ -117,11 +117,11 @@ class DocumentUploadTest extends TestCase
 
     public function test_the_document_list_shows_the_time_of_each_stage(): void
     {
-        Document::factory()->create(['docling_processing_time' => 8.7, 'indexing_time' => 3.2, 'graph_time' => 45.0]);
+        Document::factory()->create(['docling_processing_time' => 8.7, 'indexing_time' => 3.2, 'graph_time' => 45.0, 'personal_data_count' => 17]);
 
         Livewire::test(ListDocuments::class)
-            ->assertSeeInOrder(['Извлечение', 'Индексация', 'Граф'])
-            ->assertSeeInOrder(['8,7 с', '3,2 с', '45,0 с']);
+            ->assertSeeInOrder(['Извлечение', 'Чанкование', 'Фрагменты', 'ПДн'])
+            ->assertSeeInOrder(['8,7 с', '3,2 с', '45,0 с', '17']);
     }
 
     public function test_a_failed_document_can_be_processed_again(): void
@@ -133,6 +133,7 @@ class DocumentUploadTest extends TestCase
             'docling_processing_time' => 8.7,
             'indexing_time' => 3.2,
             'graph_time' => 45.0,
+            'personal_data_count' => 17,
         ]);
 
         Livewire::test(ListDocuments::class)
@@ -146,6 +147,7 @@ class DocumentUploadTest extends TestCase
         $this->assertNull($document->docling_processing_time);
         $this->assertNull($document->indexing_time);
         $this->assertNull($document->graph_time);
+        $this->assertSame(0, $document->personal_data_count);
         Queue::assertPushedOn('documents', ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document));
     }
 

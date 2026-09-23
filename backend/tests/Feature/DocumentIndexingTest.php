@@ -5,10 +5,11 @@ namespace Tests\Feature;
 use App\Actions\IndexDocumentChunks;
 use App\Enums\AccessLevel;
 use App\Enums\DocumentStatus;
-use App\Jobs\ExtractGraph;
 use App\Jobs\IndexDocument;
+use App\Jobs\ProcessChunk;
 use App\Models\Document;
 use App\Neuron\GraphExtractor;
+use App\Neuron\PersonalDataDetector;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -29,6 +30,7 @@ use NeuronAI\Testing\RequestRecord;
 use RuntimeException;
 use Tests\Fakes\FakeGraphStore;
 use Tests\TestCase;
+use Throwable;
 
 class DocumentIndexingTest extends TestCase
 {
@@ -43,6 +45,8 @@ class DocumentIndexingTest extends TestCase
     private MemoryVectorStore $vectorStore;
 
     private FakeAIProvider $llm;
+
+    private FakeAIProvider $personalDataLlm;
 
     private FakeGraphStore $graphStore;
 
@@ -83,6 +87,7 @@ class DocumentIndexingTest extends TestCase
         });
 
         $this->fakeLlmAnswers(array_fill(0, 5, self::EMPTY_GRAPH));
+        $this->fakePersonalData(array_fill(0, 5, []));
 
         $this->graphStore = new FakeGraphStore;
         $this->app->instance(GraphStoreInterface::class, $this->graphStore);
@@ -337,19 +342,61 @@ class DocumentIndexingTest extends TestCase
 
         app()->call([new IndexDocument($document), 'handle']);
 
+        // Точка, записанная задачей чанка до сбоя пакета
+        $this->vectorStore->addDocuments([$this->storedPoint((string) $document->id, 'Начало работы')]);
+        $this->graphStore->queries = [];
+
         Bus::assertBatched(function (PendingBatchFake $batch) use ($document): bool {
             $batch->catchCallbacks()[0](new BatchFake('fake', $batch->name, 1, 1, 1, [], [], CarbonImmutable::now()), new RuntimeException('vLLM недоступен'));
 
-            return $batch->name === "graph:document:{$document->id}"
+            return $batch->name === "chunks:document:{$document->id}"
                 && $batch->queue() === 'graph'
                 && $batch->jobs->count() === 1
-                && $batch->jobs->first() instanceof ExtractGraph
-                && $batch->jobs->first()->chunkId === IndexDocumentChunks::chunkId($document->id, 0);
+                && $batch->jobs->first() instanceof ProcessChunk
+                && $batch->jobs->first()->chunk['chunk_index'] === 0;
         });
 
         $document->refresh();
         $this->assertSame(DocumentStatus::Failed, $document->status);
         $this->assertSame('vLLM недоступен', $document->error);
+        // Документ без части чанков не отвечает на вопросы: индексы очищены целиком
+        $this->assertSame([], $this->points());
+        $this->assertNotSame([], $this->graphStore->parametersOf('MATCH (chunk:Chunk {document_id: $documentId}) DETACH DELETE chunk'));
+    }
+
+    public function test_personal_data_is_masked_before_it_reaches_any_index(): void
+    {
+        $this->fakePersonalData([[
+            ['text' => 'Иванов Пётр Сергеевич', 'type' => 'person_name'],
+            ['text' => '+7 912 345-67-89', 'type' => 'phone'],
+        ]]);
+        $this->fakeChunks([$this->chunk(0, "Акт приёма в ремонт. Клиент: Иванов Пётр Сергеевич, тел. +7 912 345-67-89.\nНеисправность: нет изображения.")]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $masked = "Акт приёма в ремонт. Клиент: [ФИО 1], тел. [ТЕЛЕФОН 1].\nНеисправность: нет изображения.";
+        $this->assertSame([$masked], $this->embeddedTexts);
+        $this->assertSame($masked, $this->points()[0]->getContent());
+        $this->llm->assertSent(fn (RequestRecord $record): bool => str_contains((string) $record->messages[0]->getContent(), $masked));
+        $this->assertSame(2, $document->refresh()->personal_data_count);
+    }
+
+    public function test_an_unavailable_masking_model_keeps_the_chunk_out_of_the_indexes(): void
+    {
+        $this->fakePersonalData([]);
+        $this->fakeChunks([$this->chunk(0, 'Клиент: Иванов Пётр Сергеевич.')]);
+        $document = $this->extractedDocument();
+
+        try {
+            app()->call([new IndexDocument($document), 'handle']);
+        } catch (Throwable) {
+            // Синхронная очередь пробрасывает исключение задачи чанка
+        }
+
+        $this->assertSame([], $this->embeddedTexts);
+        $this->assertSame([], $this->points());
+        $this->llm->assertNothingSent();
     }
 
     public function test_an_unparsable_extraction_fails_the_document_without_retrying(): void
@@ -389,6 +436,18 @@ class DocumentIndexingTest extends TestCase
 
         $this->assertNotEmpty($matching, "Нет запроса к графу с «{$fragment}»");
         $this->assertSame($parameters, array_values($matching)[0][1]);
+    }
+
+    /**
+     * @param  list<list<array{text: string, type: string}>>  $answers  personal data the model finds in each chunk
+     */
+    private function fakePersonalData(array $answers): void
+    {
+        $this->personalDataLlm = new FakeAIProvider(...array_map(
+            fn (array $fragments): AssistantMessage => new AssistantMessage(json_encode(['fragments' => $fragments], JSON_UNESCAPED_UNICODE)),
+            $answers,
+        ));
+        $this->app->bind(PersonalDataDetector::class, fn (): PersonalDataDetector => (new PersonalDataDetector)->setAiProvider($this->personalDataLlm));
     }
 
     /**

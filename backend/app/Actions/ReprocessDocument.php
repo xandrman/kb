@@ -19,6 +19,7 @@ class ReprocessDocument
             'docling_processing_time' => null,
             'indexing_time' => null,
             'graph_time' => null,
+            'personal_data_count' => 0,
             'error' => null,
         ]);
 

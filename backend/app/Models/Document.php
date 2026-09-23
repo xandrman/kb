@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'digest', 'mime_type', 'original_name', 'size', 'sku', 'document_type_id',
     'access_level', 'owner_department', 'document_date', 'status', 'uploaded_by',
-    'route', 'docling_task_id', 'docling_processing_time', 'indexing_time', 'graph_time', 'error',
+    'route', 'docling_task_id', 'docling_processing_time', 'indexing_time', 'graph_time', 'personal_data_count', 'error',
 ])]
 class Document extends Model
 {
@@ -37,6 +37,7 @@ class Document extends Model
             'docling_processing_time' => 'float',
             'indexing_time' => 'float',
             'graph_time' => 'float',
+            'personal_data_count' => 'integer',
         ];
     }
 

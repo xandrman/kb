@@ -36,8 +36,14 @@ class DocumentsTable
                     ->badge()
                     ->tooltip(fn (Document $record): ?string => $record->error),
                 self::durationColumn('docling_processing_time', 'Извлечение'),
-                self::durationColumn('indexing_time', 'Индексация'),
-                self::durationColumn('graph_time', 'Граф'),
+                self::durationColumn('indexing_time', 'Чанкование'),
+                // Маскирование ПДн, векторы и граф — по задаче на фрагмент
+                self::durationColumn('graph_time', 'Фрагменты'),
+                TextColumn::make('personal_data_count')
+                    ->label('ПДн')
+                    ->tooltip('Сколько значений персональных данных замаскировано до индексации')
+                    ->numeric()
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Загружен')
                     ->dateTime()
