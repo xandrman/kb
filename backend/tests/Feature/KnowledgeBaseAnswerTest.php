@@ -4,6 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\AnswerQuestion;
 use App\Enums\AccessLevel;
+use App\Enums\GuardrailAction;
+use App\Enums\GuardrailCheckpoint;
+use App\Models\GuardrailEvent;
+use App\Models\User;
 use App\Neuron\KnowledgeBaseRag;
 use App\Neuron\Nodes\GroundedContextNode;
 use App\Neuron\PersonalDataDetector;
@@ -119,6 +123,35 @@ class KnowledgeBaseAnswerTest extends TestCase
         $masked = 'Клиент [ФИО 1], тел. [ТЕЛЕФОН 1]: на мониторе полосы, что делать?';
         $this->assertSame($masked, $this->retrievedFor);
         $this->llm->assertSent(fn (RequestRecord $record): bool => $record->messages[array_key_last($record->messages)]->getContent() === $masked);
+    }
+
+    public function test_masked_personal_data_of_the_question_is_logged_without_the_values(): void
+    {
+        $user = User::factory()->create();
+        $this->personalDataFound([
+            ['text' => 'Каширин Кирилл', 'type' => 'person_name'],
+            ['text' => '+7 993 058 33 75', 'type' => 'phone'],
+        ]);
+        $this->retrieved = [$this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89)];
+
+        $answering = app(AnswerQuestion::class)->handle(AccessLevel::Public, 'Клиент Каширин Кирилл, тел. +7 993 058 33 75: полосы, что делать?', $user);
+        iterator_to_array($answering, false);
+
+        $event = GuardrailEvent::sole();
+        $this->assertSame($user->id, $event->user_id);
+        $this->assertSame(GuardrailCheckpoint::InputPersonalData, $event->checkpoint);
+        $this->assertSame(GuardrailAction::Masked, $event->action);
+        $this->assertSame('ФИО ×1, телефон ×1', $event->reason);
+        $this->assertSame('Клиент [ФИО 1], тел. [ТЕЛЕФОН 1]: полосы, что делать?', $event->question);
+    }
+
+    public function test_a_question_without_personal_data_is_not_logged(): void
+    {
+        $this->retrieved = [$this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89)];
+
+        $this->answer(AccessLevel::Public, 'Что делать, если на экране полосы?');
+
+        $this->assertSame(0, GuardrailEvent::count());
     }
 
     public function test_retrieval_runs_with_the_given_clearance(): void

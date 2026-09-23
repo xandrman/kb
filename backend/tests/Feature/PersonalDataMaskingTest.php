@@ -54,7 +54,7 @@ class PersonalDataMaskingTest extends TestCase
 
         $masked = app(MaskPersonalData::class)->handle('Горячая линия MSI: 8 800 700 77 08.');
 
-        $this->assertSame(['text' => 'Горячая линия MSI: 8 800 700 77 08.', 'count' => 0], $masked);
+        $this->assertSame(['text' => 'Горячая линия MSI: 8 800 700 77 08.', 'count' => 0, 'types' => []], $masked);
     }
 
     public function test_snils_and_card_numbers_are_masked_by_their_format_even_if_the_model_misses_them(): void

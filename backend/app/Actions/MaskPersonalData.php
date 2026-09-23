@@ -15,7 +15,7 @@ class MaskPersonalData
      *
      * Ошибки не перехватываются: если модель недоступна или ответ не прошёл схему, текст не должен уйти в индекс немаскированным.
      *
-     * @return array{text: string, count: int} masked text and the number of distinct values replaced
+     * @return array{text: string, count: int, types: array<string, int>} masked text, distinct values replaced, their number per type
      */
     public function handle(string $text): array
     {
@@ -46,7 +46,20 @@ class MaskPersonalData
             $masked[$key] = true;
         }
 
-        return ['text' => $text, 'count' => count($masked)];
+        return ['text' => $text, 'count' => count($masked), 'types' => $numbers];
+    }
+
+    /**
+     * Human-readable summary of what was masked, without the values: «ФИО ×1, телефон ×1».
+     *
+     * @param  array<string, int>  $types
+     */
+    public static function summary(array $types): string
+    {
+        // В порядке объявления видов, а не находки: одна и та же причина пишется одинаково
+        $present = array_filter(PersonalDataType::cases(), fn (PersonalDataType $type): bool => isset($types[$type->value]));
+
+        return implode(', ', array_map(fn (PersonalDataType $type): string => $type->label()." ×{$types[$type->value]}", $present));
     }
 
     /**

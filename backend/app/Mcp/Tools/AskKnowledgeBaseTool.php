@@ -29,7 +29,7 @@ class AskKnowledgeBaseTool extends Tool
         $user = $request->user();
 
         // FR-7: допуск — из ролей пользователя, которые пришли с его токеном Keycloak
-        $answering = $answerQuestion->handle($user->clearance(), $validated['question']);
+        $answering = $answerQuestion->handle($user->clearance(), $validated['question'], $user);
         $progress = 0;
 
         foreach ($answering as $step) {

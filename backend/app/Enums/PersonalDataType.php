@@ -34,4 +34,22 @@ enum PersonalDataType: string
             self::BankCard => 'НОМЕР КАРТЫ',
         };
     }
+
+    /**
+     * Name in the guardrail log: «ФИО ×1, телефон ×2».
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::PersonName => 'ФИО',
+            self::Phone => 'телефон',
+            self::Email => 'e-mail',
+            self::Address => 'адрес',
+            self::Passport => 'паспорт',
+            self::Snils => 'СНИЛС',
+            self::Inn => 'ИНН',
+            self::BirthDate => 'дата рождения',
+            self::BankCard => 'номер карты',
+        };
+    }
 }

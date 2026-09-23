@@ -3,6 +3,9 @@
 namespace App\Actions;
 
 use App\Enums\AccessLevel;
+use App\Enums\GuardrailAction;
+use App\Enums\GuardrailCheckpoint;
+use App\Models\User;
 use App\Neuron\Events\ProgressEvent;
 use App\Neuron\KnowledgeBaseRag;
 use Generator;
@@ -11,20 +14,34 @@ use NeuronAI\Chat\Messages\UserMessage;
 
 class AnswerQuestion
 {
-    public function __construct(private readonly MaskPersonalData $maskPersonalData) {}
+    public function __construct(
+        private readonly MaskPersonalData $maskPersonalData,
+        private readonly RecordGuardrailEvent $recordGuardrailEvent,
+    ) {}
 
     /**
-     * Answer from the documents the clearance opens, or refuse when they hold no answer (FR-5, FR-7).
+     * Answer from the documents the clearance opens, or refuse when they hold no answer (FR-5, FR-7); $user — for the guardrail log.
      *
      * Генератор: по ходу работы отдаёт описания шагов для показа пользователю, ответ — его возвращаемое значение.
      *
      * @return Generator<int, string, mixed, string>
      */
-    public function handle(AccessLevel $clearance, string $question): Generator
+    public function handle(AccessLevel $clearance, string $question, ?User $user = null): Generator
     {
         // Входной guardrail (FR-8): ПДн из вопроса не уходят ни в эмбеддинг, ни в реранкер, ни в LLM. Метки, а не удаление:
         // на замере по вопросам с ФИО, телефоном, адресом и e-mail нужный фрагмент оставался первым, оценка не падала
-        $question = $this->maskPersonalData->handle($question)['text'];
+        $masking = $this->maskPersonalData->handle($question);
+        $question = $masking['text'];
+
+        if ($masking['count'] > 0) {
+            $this->recordGuardrailEvent->handle(
+                $user,
+                GuardrailCheckpoint::InputPersonalData,
+                GuardrailAction::Masked,
+                MaskPersonalData::summary($masking['types']),
+                $question,
+            );
+        }
 
         $rag = app(KnowledgeBaseRag::class, ['clearance' => $clearance]);
         $events = $rag->chat(new UserMessage($question))->events();
