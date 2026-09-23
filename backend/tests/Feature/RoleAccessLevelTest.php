@@ -40,6 +40,31 @@ class RoleAccessLevelTest extends TestCase
         $this->assertSame(AccessLevel::Internal, $role->refresh()->access_level);
     }
 
+    public function test_the_choice_lists_what_each_option_opens_and_an_unset_role_shows_public(): void
+    {
+        $role = Role::findOrCreate('viewer', 'web');
+
+        Livewire::test(ManageRoles::class)
+            ->assertTableColumnStateSet('access_level', [AccessLevel::Public], $role)
+            ->mountAction(TestAction::make(EditAction::class)->table($role))
+            ->assertSchemaStateSet(['access_level' => AccessLevel::Public->value])
+            ->assertFormFieldExists('access_level', fn ($field): bool => $field->getOptions() === [
+                'public' => 'Общедоступные',
+                'internal' => 'Общедоступные и служебные',
+                'confidential' => 'Общедоступные, служебные и конфиденциальные',
+            ]);
+    }
+
+    public function test_a_role_shows_every_level_it_opens(): void
+    {
+        $role = Role::findOrCreate('security', 'web');
+        $role->update(['access_level' => AccessLevel::Confidential]);
+
+        Livewire::test(ManageRoles::class)
+            ->assertTableColumnStateSet('access_level', [AccessLevel::Public, AccessLevel::Internal, AccessLevel::Confidential], $role)
+            ->assertSeeInOrder(['Общедоступный', 'Служебный', 'Конфиденциальный']);
+    }
+
     public function test_a_role_can_be_configured_before_anyone_signs_in_with_it(): void
     {
         Livewire::test(ManageRoles::class)

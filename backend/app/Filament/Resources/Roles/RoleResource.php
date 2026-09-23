@@ -39,10 +39,12 @@ class RoleResource extends Resource
                     ->unique(ignoreRecord: true)
                     ->disabledOn('edit'),
                 Select::make('access_level')
-                    ->label('Доступ до грифа')
-                    ->options(AccessLevel::class)
-                    ->placeholder('Только общедоступные')
-                    ->helperText('Роль открывает документы с этим грифом и всеми менее строгими.'),
+                    ->label('Доступные документы')
+                    ->options(AccessLevel::clearanceOptions())
+                    ->default(AccessLevel::Public->value)
+                    ->formatStateUsing(fn (AccessLevel|string|null $state): string => $state instanceof AccessLevel ? $state->value : ($state ?? AccessLevel::Public->value))
+                    ->required()
+                    ->selectablePlaceholder(false),
             ]);
     }
 
@@ -57,9 +59,10 @@ class RoleResource extends Resource
                     ->label('Роль Keycloak')
                     ->searchable(),
                 TextColumn::make('access_level')
-                    ->label('Доступ до грифа')
+                    ->label('Доступные документы')
                     ->badge()
-                    ->placeholder('Только общедоступные'),
+                    // По бейджу на каждый открытый гриф; роль из Keycloak, ещё не настроенная, открывает только общедоступные
+                    ->state(fn (Role $record): array => ($record->access_level ?? AccessLevel::Public)->opens()),
                 TextColumn::make('users_count')
                     ->label('Пользователей')
                     ->counts('users'),
