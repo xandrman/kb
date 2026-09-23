@@ -27,10 +27,11 @@ RUN npm run build
 
 FROM php:8.5-fpm-alpine@sha256:ce1dcc234879feab0f309100e55e89e7cf21b9085e76de2a03a8240cec02751e
 
-# pdo_pgsql — ADR-0014, redis — ADR-0019, pcntl — сигналы queue:work в kb-worker; opcache в образе уже есть
+# pdo_pgsql — ADR-0014, redis — ADR-0019, pcntl — сигналы queue:work в kb-worker; bcmath — dev-пакет laravel-lang
+# (lang:update в контейнере из этого образа); opcache в образе уже есть
 RUN apk add --no-cache libpq icu-libs libzip \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev linux-headers \
-    && docker-php-ext-install -j"$(nproc)" pdo_pgsql pcntl intl zip \
+    && docker-php-ext-install -j"$(nproc)" pdo_pgsql pcntl intl zip bcmath \
     && pecl install redis-6.3.0 \
     && docker-php-ext-enable redis \
     && apk del .build-deps \
