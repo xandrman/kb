@@ -57,6 +57,10 @@ class ChunkGraphExtractionTest extends TestCase
         ], $this->entities($graph));
         $this->assertSame([['Монитор «Optix»', RelationType::HasComponent, 'Разъём DisplayPort']], $this->relations($graph));
         $this->assertSame('Equipment:монитор optix', ExtractChunkGraph::entityKey(EntityType::Equipment, 'Монитор «Optix»'));
+        $this->assertSame(
+            ExtractChunkGraph::entityKey(EntityType::Equipment, 'Optix MAG301RF'),
+            ExtractChunkGraph::entityKey(EntityType::Equipment, 'Optix_MAG301RF'),
+        );
     }
 
     public function test_relations_to_unknown_entities_self_loops_and_wrong_directions_are_dropped(): void

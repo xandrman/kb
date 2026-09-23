@@ -44,7 +44,8 @@ class ExtractChunkGraph
     {
         $name = str_replace(['ё', '«', '»', '"', '“', '”', '„'], ['е', '', '', '', '', '', ''], mb_strtolower($name));
 
-        return trim((string) preg_replace('/\s+/u', ' ', $name));
+        // Подчёркивание — из имён файлов («Optix_MAG301RF»): это тот же пробел
+        return trim((string) preg_replace('/[\s_]+/u', ' ', $name));
     }
 
     /**

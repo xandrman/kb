@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\Documents\Tables;
 
+use App\Actions\ReprocessDocument;
 use App\Models\Document;
+use Filament\Actions\Action;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -43,6 +46,15 @@ class DocumentsTable
                     ->label('Загружен')
                     ->dateTime()
                     ->sortable(),
+            ])
+            ->recordActions([
+                Action::make('reprocess')
+                    ->label('Обработать заново')
+                    ->icon(Heroicon::OutlinedArrowPath)
+                    ->requiresConfirmation()
+                    ->modalDescription('Документ пройдёт обработку с начала: извлечение текста, чанкование, векторный индекс и граф.')
+                    ->visible(fn (Document $record): bool => ReprocessDocument::isAllowed($record))
+                    ->action(fn (Document $record, ReprocessDocument $reprocess) => $reprocess->handle($record)),
             ]);
     }
 }

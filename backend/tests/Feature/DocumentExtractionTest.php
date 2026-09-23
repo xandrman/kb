@@ -124,6 +124,20 @@ class DocumentExtractionTest extends TestCase
         Queue::assertPushedOn('documents', IndexDocument::class, fn (IndexDocument $job): bool => $job->document->is($document));
     }
 
+    public function test_a_uint64_binary_hash_is_stored_without_losing_precision(): void
+    {
+        Http::fake([
+            'docling.test/v1/status/poll/*' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'success']),
+            'docling.test/v1/result/*' => Http::response('{"status":"success","errors":[],"processing_time":8.7,"document":{"json_content":{"schema_name":"DoclingDocument","origin":{"binary_hash":15376209090199646208}}}}'),
+        ]);
+        $document = $this->extractingDocument();
+
+        app()->call([new PollExtraction($document), 'handle']);
+
+        $stored = Storage::disk('documents')->get('extracted/'.substr($document->digest, 0, 2).'/'.$document->digest.'.json');
+        $this->assertStringContainsString('"binary_hash":"15376209090199646208"', $stored);
+    }
+
     public function test_a_docling_failure_is_shown_on_the_document(): void
     {
         Http::fake(['docling.test/v1/status/poll/*' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'failure'])]);

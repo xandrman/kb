@@ -42,7 +42,11 @@ class DoclingClient
      */
     public function result(string $taskId): array
     {
-        return $this->request()->get("/v1/result/{$taskId}")->throw()->json();
+        $body = $this->request()->get("/v1/result/{$taskId}")->throw()->body();
+
+        // binary_hash — uint64: выше PHP_INT_MAX json_decode делает float, и после сохранения docling отвергает документ как невалидный.
+        // Строкой число сохраняется точно, а docling принимает его и в таком виде
+        return json_decode($body, true, 512, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
     }
 
     /**

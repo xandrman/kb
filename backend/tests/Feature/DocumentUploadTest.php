@@ -10,6 +10,7 @@ use App\Jobs\ProcessDocument;
 use App\Models\Document;
 use App\Models\DocumentType;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -119,6 +120,35 @@ class DocumentUploadTest extends TestCase
         Document::factory()->create(['docling_processing_time' => 8.7]);
 
         Livewire::test(ListDocuments::class)->assertSee('8,7 с');
+    }
+
+    public function test_a_failed_document_can_be_processed_again(): void
+    {
+        $document = Document::factory()->create([
+            'status' => DocumentStatus::Failed,
+            'docling_task_id' => 'c41cb5ef-92c5-4fd1-b02c-0cd4b431def1',
+            'error' => 'docling не разбил документ на чанки',
+        ]);
+
+        Livewire::test(ListDocuments::class)
+            ->callAction(TestAction::make('reprocess')->table($document))
+            ->assertHasNoActionErrors();
+
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Pending, $document->status);
+        $this->assertNull($document->docling_task_id);
+        $this->assertNull($document->error);
+        Queue::assertPushedOn('documents', ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document));
+    }
+
+    public function test_documents_in_progress_cannot_be_processed_again(): void
+    {
+        $inProgress = collect([DocumentStatus::Pending, DocumentStatus::Extracting, DocumentStatus::Indexed, DocumentStatus::Duplicate])
+            ->map(fn (DocumentStatus $status): Document => Document::factory()->create(['status' => $status]));
+        $processed = Document::factory()->create(['status' => DocumentStatus::Processed]);
+
+        $page = Livewire::test(ListDocuments::class)->assertActionVisible(TestAction::make('reprocess')->table($processed));
+        $inProgress->each(fn (Document $document) => $page->assertActionHidden(TestAction::make('reprocess')->table($document)));
     }
 
     /**
