@@ -40,7 +40,7 @@ class GroundedContextNode extends Node
             return new StopEvent;
         }
 
-        yield new ProgressEvent('Формирую ответ (источников: '.count($event->documents).')…');
+        yield new ProgressEvent('Формирую ответ…');
 
         return new AIInferenceEvent(
             instructions: $this->baseInstructions."\n\n<CONTEXT>\n".$this->context($event->documents).'</CONTEXT>',
