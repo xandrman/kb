@@ -8,6 +8,7 @@ use App\Enums\DocumentStatus;
 use App\Jobs\ExtractGraph;
 use App\Models\Document;
 use App\Services\DoclingClient;
+use App\Services\KnowledgeGraph;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
 use NeuronAI\RAG\Document as Chunk;
@@ -34,6 +35,7 @@ class IndexDocumentChunks
         private readonly DoclingClient $docling,
         private readonly EmbeddingsProviderInterface $embeddings,
         private readonly VectorStoreInterface $vectorStore,
+        private readonly KnowledgeGraph $knowledgeGraph,
     ) {}
 
     /**
@@ -70,6 +72,9 @@ class IndexDocumentChunks
     private function dispatchGraphExtraction(Document $document, array $chunks): void
     {
         $documentId = $document->id;
+
+        // Чанки прошлой нарезки, которых нет в новой, задачи пакета не перезапишут
+        $this->knowledgeGraph->forgetDocument($document);
 
         Bus::batch(array_map(
             fn (array $chunk): ExtractGraph => new ExtractGraph($document, self::chunkId($documentId, $chunk['chunk_index']), $chunk['text']),

@@ -21,4 +21,5 @@ storage/logs/*
 storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
+storage/framework/testing
 bootstrap/cache/*.php

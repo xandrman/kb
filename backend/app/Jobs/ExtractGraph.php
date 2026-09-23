@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Actions\ExtractChunkGraph;
 use App\Models\Document;
+use App\Neuron\Output\ExtractedGraph;
+use App\Services\KnowledgeGraph;
 use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -46,15 +48,17 @@ class ExtractGraph implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ExtractChunkGraph $extractGraph): void
+    public function handle(ExtractChunkGraph $extractGraph, KnowledgeGraph $knowledgeGraph): void
     {
         if ($this->batch()?->cancelled()) {
             return;
         }
 
         try {
-            $extractGraph->handle($this->text, $this->document->original_name);
+            $graph = $extractGraph->handle($this->text, $this->document->original_name);
         } catch (AgentException|DeserializerException $exception) {
+            $graph = new ExtractedGraph;
+
             // Ответ не прошёл схему и после повтора внутри Neuron; при temperature 0 повтор задачи даст то же — чанк остаётся без графа
             Log::warning('Граф чанка не извлечён', [
                 'document_id' => $this->document->id,
@@ -62,5 +66,8 @@ class ExtractGraph implements ShouldQueue
                 'error' => $exception->getMessage(),
             ]);
         }
+
+        // Чанк пишется и без сущностей: иначе от прошлой нарезки остался бы его граф
+        $knowledgeGraph->writeChunk($this->document, $this->chunkId, $graph);
     }
 }

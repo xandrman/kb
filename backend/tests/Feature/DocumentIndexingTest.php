@@ -21,6 +21,7 @@ use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\AbstractEmbeddingsProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
+use NeuronAI\RAG\GraphStore\GraphStoreInterface;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Testing\FakeAIProvider;
@@ -41,6 +42,8 @@ class DocumentIndexingTest extends TestCase
     private MemoryVectorStore $vectorStore;
 
     private FakeAIProvider $llm;
+
+    private GraphStoreInterface $graphStore;
 
     /**
      * @var list<string>
@@ -79,6 +82,41 @@ class DocumentIndexingTest extends TestCase
         });
 
         $this->fakeLlmAnswers(array_fill(0, 5, self::EMPTY_GRAPH));
+
+        $this->graphStore = new class implements GraphStoreInterface
+        {
+            /**
+             * @var list<array{0: string, 1: array<string, mixed>}>
+             */
+            public array $queries = [];
+
+            public function upsert(string $subject, string $relation, string $object): void {}
+
+            public function delete(string $subject, string $relation, string $object): void {}
+
+            public function get(string $subject): array
+            {
+                return [];
+            }
+
+            public function getRelationshipMap(array $subjects = [], int $depth = 2, int $limit = 30): array
+            {
+                return [];
+            }
+
+            public function getSchema(bool $refresh = false): string
+            {
+                return '';
+            }
+
+            public function query(string $query, array $parameters = []): mixed
+            {
+                $this->queries[] = [$query, $parameters];
+
+                return [];
+            }
+        };
+        $this->app->instance(GraphStoreInterface::class, $this->graphStore);
     }
 
     public function test_the_stored_extraction_is_chunked_by_docling_without_converting_the_original_again(): void
@@ -174,6 +212,61 @@ class DocumentIndexingTest extends TestCase
         $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
     }
 
+    public function test_extracted_entities_and_relations_are_written_to_the_graph_with_the_document_access(): void
+    {
+        $this->fakeLlmAnswers([json_encode([
+            'entities' => [
+                ['name' => 'MSI Optix MPG341QR', 'type' => 'Equipment'],
+                ['name' => 'Нет изображения', 'type' => 'Fault'],
+            ],
+            'relations' => [['source' => 'MSI Optix MPG341QR', 'type' => 'HAS_FAULT', 'target' => 'Нет изображения']],
+        ], JSON_UNESCAPED_UNICODE)]);
+        $this->fakeChunks([$this->chunk(0, 'Нет изображения на мониторе')]);
+        $document = $this->extractedDocument(['access_level' => AccessLevel::Confidential, 'owner_department' => 'Сервис']);
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $chunkId = IndexDocumentChunks::chunkId($document->id, 0);
+        $this->assertGraphQuery('MERGE (chunk:Chunk {id: $chunkId})', [
+            'chunkId' => $chunkId,
+            'entities' => [
+                ['key' => 'Equipment:msi optix mpg341qr', 'name' => 'MSI Optix MPG341QR', 'type' => 'Equipment'],
+                ['key' => 'Fault:нет изображения', 'name' => 'Нет изображения', 'type' => 'Fault'],
+            ],
+            'documentId' => $document->id,
+            'accessLevel' => 'confidential',
+            'accessRank' => 2,
+            'department' => 'Сервис',
+        ]);
+        $this->assertGraphQuery('CREATE (source)-[:RELATES', [
+            'chunkId' => $chunkId,
+            'relations' => [['source' => 'Equipment:msi optix mpg341qr', 'type' => 'HAS_FAULT', 'target' => 'Fault:нет изображения']],
+            'documentId' => $document->id,
+            'accessLevel' => 'confidential',
+            'accessRank' => 2,
+            'department' => 'Сервис',
+        ]);
+        $this->assertGraphQuery('max(chunk.access_rank)', [
+            'keys' => ['Equipment:msi optix mpg341qr', 'Fault:нет изображения'],
+            'levels' => ['public', 'internal', 'confidential'],
+        ]);
+    }
+
+    public function test_reindexing_forgets_the_previous_graph_of_the_document_first(): void
+    {
+        $this->fakeChunks([$this->chunk(0, 'Начало работы')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $statements = array_column($this->graphStore->queries, 0);
+        $forget = array_search('MATCH (chunk:Chunk {document_id: $documentId}) DETACH DELETE chunk', $statements, true);
+        $write = array_search(true, array_map(fn (string $query): bool => str_contains($query, 'MERGE (chunk:Chunk {id: $chunkId})'), $statements), true);
+        $this->assertIsInt($forget);
+        $this->assertIsInt($write);
+        $this->assertLessThan($write, $forget);
+    }
+
     public function test_a_chunk_with_an_invalid_llm_answer_is_skipped(): void
     {
         // Neuron повторяет запрос один раз: оба ответа не JSON
@@ -237,6 +330,17 @@ class DocumentIndexingTest extends TestCase
 
         $job->assertFailed();
         $this->assertSame(DocumentStatus::Extracted, $document->refresh()->status);
+    }
+
+    /**
+     * @param  array<string, mixed>  $parameters
+     */
+    private function assertGraphQuery(string $fragment, array $parameters): void
+    {
+        $matching = array_filter($this->graphStore->queries, fn (array $query): bool => str_contains($query[0], $fragment));
+
+        $this->assertNotEmpty($matching, "Нет запроса к графу с «{$fragment}»");
+        $this->assertSame($parameters, array_values($matching)[0][1]);
     }
 
     /**
