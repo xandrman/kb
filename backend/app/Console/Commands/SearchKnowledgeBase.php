@@ -2,12 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Actions\SearchChunks;
 use App\Enums\AccessLevel;
+use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document as Chunk;
 
 #[Signature('kb:search {question : Вопрос пользователя} {--clearance=public : Допуск: public, internal или confidential}')]
@@ -17,7 +18,7 @@ class SearchKnowledgeBase extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SearchChunks $searchChunks): int
+    public function handle(): int
     {
         $clearance = AccessLevel::tryFrom((string) $this->option('clearance'));
 
@@ -27,7 +28,8 @@ class SearchKnowledgeBase extends Command
             return self::INVALID;
         }
 
-        $chunks = $searchChunks->handle((string) $this->argument('question'), $clearance);
+        $chunks = app(KnowledgeBaseRetrieval::class, ['clearance' => $clearance])
+            ->retrieve(new UserMessage((string) $this->argument('question')));
 
         $this->table(['Сходство', 'Документ', 'Страницы', 'Гриф', 'Текст'], array_map(fn (Chunk $chunk): array => [
             number_format($chunk->getScore(), 3),

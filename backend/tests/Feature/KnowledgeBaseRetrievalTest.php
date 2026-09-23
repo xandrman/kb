@@ -2,20 +2,22 @@
 
 namespace Tests\Feature;
 
-use App\Actions\SearchChunks;
 use App\Enums\AccessLevel;
+use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\AbstractEmbeddingsProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use Psr\Http\Message\RequestInterface;
 use Tests\TestCase;
 
-class ChunkSearchTest extends TestCase
+class KnowledgeBaseRetrievalTest extends TestCase
 {
     public const array QUESTION_VECTOR = [0.6, 0.8];
 
@@ -45,7 +47,7 @@ class ChunkSearchTest extends TestCase
             {
                 $this->embeddedTexts[] = $text;
 
-                return ChunkSearchTest::QUESTION_VECTOR;
+                return KnowledgeBaseRetrievalTest::QUESTION_VECTOR;
             }
         });
     }
@@ -54,7 +56,7 @@ class ChunkSearchTest extends TestCase
     {
         $this->fakeQdrant([]);
 
-        app(SearchChunks::class)->handle('Что делать, если на экране полосы?', AccessLevel::Public);
+        $this->retrieve('Что делать, если на экране полосы?', AccessLevel::Public);
 
         $this->assertSame(
             ["Instruct: Given a question, retrieve passages that answer the question\nQuery: Что делать, если на экране полосы?"],
@@ -66,7 +68,7 @@ class ChunkSearchTest extends TestCase
     {
         $this->fakeQdrant([]);
 
-        app(SearchChunks::class)->handle('Что делать, если на экране полосы?', AccessLevel::Internal);
+        $this->retrieve('Что делать, если на экране полосы?', AccessLevel::Internal);
 
         $search = $this->qdrantRequests[1]['request'];
         $this->assertSame('http://qdrant.test/collections/chunks/points/query', (string) $search->getUri());
@@ -81,7 +83,7 @@ class ChunkSearchTest extends TestCase
     {
         $this->fakeQdrant([]);
 
-        app(SearchChunks::class)->handle('Гарантия', AccessLevel::Public);
+        $this->retrieve('Гарантия', AccessLevel::Public);
 
         $body = json_decode((string) $this->qdrantRequests[1]['request']->getBody(), true);
         $this->assertSame(['public'], $body['filter']['must'][0]['match']['any']);
@@ -104,7 +106,7 @@ class ChunkSearchTest extends TestCase
             ],
         ]]);
 
-        $chunks = app(SearchChunks::class)->handle('полосы на экране', AccessLevel::Public);
+        $chunks = $this->retrieve('полосы на экране', AccessLevel::Public);
 
         $this->assertCount(1, $chunks);
         $this->assertSame('6b1f5a52-3c6e-5f0a-9b7d-2f1c0d4e8a11', $chunks[0]->getId());
@@ -112,6 +114,14 @@ class ChunkSearchTest extends TestCase
         $this->assertStringContainsString('обновите драйвер видеокарты', $chunks[0]->getContent());
         $this->assertSame(8, $chunks[0]->metadata['document_id']);
         $this->assertSame([24], $chunks[0]->metadata['page_numbers']);
+    }
+
+    /**
+     * @return list<Chunk>
+     */
+    private function retrieve(string $question, AccessLevel $clearance): array
+    {
+        return app(KnowledgeBaseRetrieval::class, ['clearance' => $clearance])->retrieve(new UserMessage($question));
     }
 
     /**
