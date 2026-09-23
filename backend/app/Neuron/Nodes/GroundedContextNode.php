@@ -26,6 +26,19 @@ class GroundedContextNode extends Node
     public const string CONTEXT_STATE_KEY = 'context_fragments';
 
     /**
+     * Markup of the context block; the output guardrail looks for it in answers (DetectContextLeak).
+     */
+    public const string CONTEXT_OPEN = '<CONTEXT>';
+
+    public const string CONTEXT_CLOSE = '</CONTEXT>';
+
+    public const string FRAGMENT_LABEL = 'Фрагмент';
+
+    public const string FACT_LABEL = 'Связь';
+
+    public const string ALSO_IN_LABEL = 'тот же текст в';
+
+    /**
      * @param  ToolInterface[]  $tools
      */
     public function __construct(
@@ -51,7 +64,7 @@ class GroundedContextNode extends Node
         $state->set(self::CONTEXT_STATE_KEY, array_map(fn (Chunk $chunk): string => $chunk->getContent(), array_values($event->documents)));
 
         return new AIInferenceEvent(
-            instructions: $this->baseInstructions."\n\n<CONTEXT>\n".$this->context($event->documents).'</CONTEXT>',
+            instructions: $this->baseInstructions."\n\n".self::CONTEXT_OPEN."\n".$this->context($event->documents).self::CONTEXT_CLOSE,
             tools: $this->tools,
         );
     }
@@ -63,7 +76,7 @@ class GroundedContextNode extends Node
     {
         $parts = array_filter([
             isset($chunk->metadata['document_name']) ? "документ «{$chunk->metadata['document_name']}»" : null,
-            ! empty($chunk->metadata['also_in']) ? 'тот же текст в «'.implode('», «', $chunk->metadata['also_in']).'»' : null,
+            ! empty($chunk->metadata['also_in']) ? self::ALSO_IN_LABEL.' «'.implode('», «', $chunk->metadata['also_in']).'»' : null,
             $chunk->metadata['document_type'] ?? null,
             ! empty($chunk->metadata['sku']) ? "SKU {$chunk->metadata['sku']}" : null,
             ! empty($chunk->metadata['page_numbers']) ? 'стр. '.implode(', ', $chunk->metadata['page_numbers']) : null,
@@ -80,11 +93,11 @@ class GroundedContextNode extends Node
         $context = '';
 
         foreach (array_values($chunks) as $number => $chunk) {
-            $context .= 'Фрагмент '.($number + 1).$this->source($chunk).":\n".$chunk->getContent()."\n";
+            $context .= self::FRAGMENT_LABEL.' '.($number + 1).$this->source($chunk).":\n".$chunk->getContent()."\n";
 
             // Факты графа показывают модели, как фрагмент связан с вопросом, найденным по соседству
             foreach ($chunk->metadata['graph_facts'] ?? [] as $fact) {
-                $context .= "Связь: {$fact}\n";
+                $context .= self::FACT_LABEL.": {$fact}\n";
             }
 
             $context .= "\n";

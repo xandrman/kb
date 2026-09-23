@@ -15,11 +15,14 @@ use NeuronAI\Chat\Messages\UserMessage;
 
 class AnswerQuestion
 {
+    public const string CONTEXT_LEAK_REFUSAL = 'Ответ не может быть показан: он содержит служебную информацию ассистента. Переформулируйте вопрос.';
+
     public const string INJECTION_REFUSAL = 'Запрос отклонён: он похож на попытку изменить правила работы ассистента. Задайте вопрос о технике или документах.';
 
     public function __construct(
         private readonly MaskPersonalData $maskPersonalData,
         private readonly DetectPromptInjection $detectPromptInjection,
+        private readonly DetectContextLeak $detectContextLeak,
         private readonly RecordGuardrailEvent $recordGuardrailEvent,
     ) {}
 
@@ -68,6 +71,15 @@ class AnswerQuestion
         /** @var AgentState $state */
         $state = $events->getReturn();
         $answer = (string) $state->getMessage()->getContent();
+
+        // Выходной guardrail (FR-8): ответ со служебным содержимым входа модели не отдаётся вовсе
+        $leak = $this->detectContextLeak->handle($answer, $rag->resolveInstructions());
+
+        if ($leak !== null) {
+            $this->recordGuardrailEvent->handle($user, GuardrailCheckpoint::OutputContext, GuardrailAction::Blocked, $leak, $question);
+
+            return self::CONTEXT_LEAK_REFUSAL;
+        }
 
         // Выходной guardrail (FR-8): телефон, e-mail, СНИЛС или карта, которых нет ни во фрагментах, ни в вопросе, модель
         // взяла не из документов — значение скрывается, ответ отдаётся. Шаблонами, без LLM: основная защита — маскирование при загрузке
