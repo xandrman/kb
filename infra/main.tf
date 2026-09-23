@@ -958,6 +958,9 @@ resource "docker_container" "librechat" {
     "OPENID_CLIENT_SECRET=${var.app_oauth_client_secret}",
     "OPENID_USE_PKCE=true",
     "OPENID_SESSION_SECRET=${var.librechat_session_secret}",
+    # Ключ шифрования сохранённых учётных данных: без него токены OAuth MCP не сохраняются ("Invalid key length")
+    "CREDS_KEY=${var.librechat_creds_key}",
+    "CREDS_IV=${var.librechat_creds_iv}",
     "OPENID_CALLBACK_URL=/oauth/openid/callback",
     "OPENID_SCOPE=openid profile email offline_access",
     "OPENID_REUSE_TOKENS=true",
@@ -977,8 +980,10 @@ resource "docker_container" "librechat" {
   ]
 
   upload {
-    file    = "/app/librechat.yaml"
-    content = file("${path.module}/librechat/librechat.yaml")
+    file = "/app/librechat.yaml"
+    content = templatefile("${path.module}/librechat/librechat.yaml", {
+      domain_name = var.domain_name
+    })
   }
 
   volumes {

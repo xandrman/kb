@@ -25,13 +25,20 @@ mcpServers:
     # title пропускает только [a-zA-Z0-9 ]
     title: "Knowledge Base"
     serverInstructions: true
-    # Без явного false LibreChat по 401 от /mcp при старте включает MCP OAuth и не шлёт headers ниже
-    requiresOAuth: false
-    # Токен Keycloak пользователя; права определяет kb-app по подписи токена (ADR-0024, FR-7)
-    headers:
-      Authorization: "Bearer {{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
+    # OAuth MCP через тот же клиент kb-app, что и вход в LibreChat: токен и SSO-сессия принадлежат kb-app,
+    # поэтому backchannel logout Keycloak доходит до kb-app; права определяет kb-app по подписи токена (FR-7).
+    # С client_secret LibreChat требует явные authorization_url и token_url; секрет подставляет LibreChat из env
+    requiresOAuth: true
+    oauth:
+      client_id: "kb-app"
+      client_secret: "$${OPENID_CLIENT_SECRET}"
+      authorization_url: "https://${domain_name}:8002/realms/kb/protocol/openid-connect/auth"
+      token_url: "https://${domain_name}:8002/realms/kb/protocol/openid-connect/token"
+      scope: "openid profile email"
 
-# Строгий белый список: SSRF-защита LibreChat по умолчанию блокирует внутренние имена вроде kb-nginx
+# Строгий белый список: SSRF-защита LibreChat по умолчанию блокирует внутренние имена вроде kb-nginx.
+# domain_name внутри kb-internal — алиас kb-nginx, через него LibreChat ходит в Keycloak за токеном
 mcpSettings:
   allowedDomains:
     - "kb-nginx"
+    - "${domain_name}"

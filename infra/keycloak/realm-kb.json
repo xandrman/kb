@@ -57,12 +57,16 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "https://${domain_name}:8001/auth/keycloak/callback",
-        "https://${domain_name}/oauth/openid/callback"
+        "https://${domain_name}/oauth/openid/callback",
+        "https://${domain_name}/api/mcp/kb/oauth/callback"
       ],
       "webOrigins": ["https://${domain_name}:8001", "https://${domain_name}"],
       "attributes": {
         "post.logout.redirect.uris": "https://${domain_name}:8001/*##https://${domain_name}/*",
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "backchannel.logout.url": "http://kb-nginx/mcp/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false"
       },
       "protocolMappers": [
         {

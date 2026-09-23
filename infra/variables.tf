@@ -101,3 +101,25 @@ variable "librechat_session_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "librechat_creds_key" {
+  description = "AES-256 key LibreChat encrypts stored credentials with, MCP OAuth tokens included (generate: openssl rand -hex 32)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{64}$", var.librechat_creds_key))
+    error_message = "librechat_creds_key must be 64 hex characters."
+  }
+}
+
+variable "librechat_creds_iv" {
+  description = "IV for LibreChat credential encryption (generate: openssl rand -hex 16)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.librechat_creds_iv))
+    error_message = "librechat_creds_iv must be 32 hex characters."
+  }
+}
