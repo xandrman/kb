@@ -665,6 +665,9 @@ resource "docker_container" "worker" {
     "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
     "DOCLING_VLM_MODEL=default",
     "DOCLING_CHUNK_TOKENIZER=${local.docling_tokenizer_path}",
+    # ADR-0009: извлечение графа (FR-4)
+    "LLM_URL=http://kb-vllm-generate:8000/v1",
+    "LLM_MODEL=default",
     # ADR-0010/0006: эмбеддинги чанков и векторный индекс
     "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
     "EMBEDDING_MODEL=default",

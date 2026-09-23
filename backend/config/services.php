@@ -32,6 +32,12 @@ return [
         'chunk_max_tokens' => (int) env('DOCLING_CHUNK_MAX_TOKENS', 512),
     ],
 
+    // ADR-0009: генеративная модель kb-vllm-generate — извлечение графа (FR-4)
+    'llm' => [
+        'url' => env('LLM_URL'),
+        'model' => env('LLM_MODEL', 'default'),
+    ],
+
     // ADR-0010: эмбеддинги чанков в kb-vllm-embedding
     'embedding' => [
         'url' => env('EMBEDDING_URL'),

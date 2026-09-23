@@ -128,6 +128,24 @@ class DocumentIndexingTest extends TestCase
         $this->assertSame(['Чужой документ', 'Новая нарезка'], array_map(fn (Chunk $point): string => $point->getContent(), $this->points()));
     }
 
+    public function test_chunk_ids_are_stable_across_reindexing(): void
+    {
+        $this->fakeChunks([$this->chunk(0, 'Начало работы'), $this->chunk(1, 'Гарантия')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+        $firstIds = array_map(fn (Chunk $point): string|int => $point->getId(), $this->points());
+        app()->call([new IndexDocument($document), 'handle']);
+        $secondIds = array_map(fn (Chunk $point): string|int => $point->getId(), $this->points());
+
+        $this->assertSame([
+            IndexDocumentChunks::chunkId($document->id, 0),
+            IndexDocumentChunks::chunkId($document->id, 1),
+        ], $firstIds);
+        $this->assertSame($firstIds, $secondIds);
+        $this->assertNotSame(IndexDocumentChunks::chunkId($document->id, 0), IndexDocumentChunks::chunkId($document->id + 1, 0));
+    }
+
     public function test_an_unparsable_extraction_fails_the_document_without_retrying(): void
     {
         Http::fake(['docling.test/v1/chunk/hybrid/file' => Http::response([

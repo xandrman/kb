@@ -10,6 +10,7 @@ use App\Services\DoclingClient;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use Ramsey\Uuid\Uuid;
 use RuntimeException;
 
 class IndexDocumentChunks
@@ -18,6 +19,11 @@ class IndexDocumentChunks
      * Point source type in Qdrant; the source name is the document id.
      */
     public const string SOURCE_TYPE = 'document';
+
+    /**
+     * UUIDv5 namespace of chunk ids.
+     */
+    private const string CHUNK_ID_NAMESPACE = '0b6f3c1e-8f2a-4d5b-9c7e-2a4d6f8b1c3e';
 
     public function __construct(
         private readonly DocumentStorage $storage,
@@ -51,11 +57,20 @@ class IndexDocumentChunks
     }
 
     /**
+     * Stable chunk id: the Qdrant point and the graph chunk node share it, so reindexing keeps the link.
+     */
+    public static function chunkId(int $documentId, int $chunkIndex): string
+    {
+        return Uuid::uuid5(self::CHUNK_ID_NAMESPACE, "{$documentId}:{$chunkIndex}")->toString();
+    }
+
+    /**
      * @param  array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null}  $chunk
      */
     private function toPoint(Document $document, array $chunk): Chunk
     {
         $point = new Chunk($chunk['text']);
+        $point->id = self::chunkId($document->id, $chunk['chunk_index']);
         $point->sourceType = self::SOURCE_TYPE;
         $point->sourceName = (string) $document->id;
 
