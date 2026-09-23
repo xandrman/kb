@@ -14,8 +14,11 @@ use NeuronAI\Chat\Messages\UserMessage;
 
 class AnswerQuestion
 {
+    public const string INJECTION_REFUSAL = 'Запрос отклонён: он похож на попытку изменить правила работы ассистента. Задайте вопрос о технике или документах.';
+
     public function __construct(
         private readonly MaskPersonalData $maskPersonalData,
+        private readonly DetectPromptInjection $detectPromptInjection,
         private readonly RecordGuardrailEvent $recordGuardrailEvent,
     ) {}
 
@@ -41,6 +44,15 @@ class AnswerQuestion
                 MaskPersonalData::summary($masking['types']),
                 $question,
             );
+        }
+
+        // Входной guardrail (FR-8): атака на ассистента не доходит ни до поиска, ни до модели ответа
+        $attack = $this->detectPromptInjection->handle($question);
+
+        if ($attack !== null) {
+            $this->recordGuardrailEvent->handle($user, GuardrailCheckpoint::InputInjection, GuardrailAction::Blocked, $attack->label(), $question);
+
+            return self::INJECTION_REFUSAL;
         }
 
         $rag = app(KnowledgeBaseRag::class, ['clearance' => $clearance]);

@@ -7,6 +7,7 @@ use App\Mcp\Servers\McpServer;
 use App\Mcp\Tools\AskKnowledgeBaseTool;
 use App\Models\Role;
 use App\Models\User;
+use App\Neuron\InjectionDetector;
 use App\Neuron\KnowledgeBaseRag;
 use App\Neuron\PersonalDataDetector;
 use GuzzleHttp\Handler\MockHandler;
@@ -44,6 +45,7 @@ class AskKnowledgeBaseToolTest extends TestCase
         parent::setUp();
 
         $this->personalDataFound([]);
+        $this->injectionVerdict('none');
 
         $this->app->instance(EmbeddingsProviderInterface::class, new class extends AbstractEmbeddingsProvider
         {
@@ -149,6 +151,13 @@ class AskKnowledgeBaseToolTest extends TestCase
     {
         $this->app->bind(PersonalDataDetector::class, fn (): PersonalDataDetector => (new PersonalDataDetector)->setAiProvider(
             new FakeAIProvider(new AssistantMessage(json_encode(['fragments' => $fragments], JSON_UNESCAPED_UNICODE))),
+        ));
+    }
+
+    private function injectionVerdict(string $category): void
+    {
+        $this->app->bind(InjectionDetector::class, fn (): InjectionDetector => (new InjectionDetector)->setAiProvider(
+            new FakeAIProvider(new AssistantMessage(json_encode(['category' => $category]))),
         ));
     }
 }
