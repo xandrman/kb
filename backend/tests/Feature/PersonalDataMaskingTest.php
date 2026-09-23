@@ -67,6 +67,18 @@ class PersonalDataMaskingTest extends TestCase
         $this->assertSame(2, $masked['count']);
     }
 
+    public function test_an_answer_is_masked_by_format_leaving_values_from_the_documents(): void
+    {
+        $this->modelFinds([]);
+        $answer = 'Позвоните в поддержку MSI по +7 800 700-77-08 или на RUSupport@msi.com. Мастер: +7 912 345-67-89, ivanov@mail.ru, СНИЛС 112-233-445 95.';
+
+        $masked = app(MaskPersonalData::class)->handleByPatterns($answer, 'Горячая линия MSI: 8 800 700 77 08, rusupport@msi.com');
+
+        $this->assertSame('Позвоните в поддержку MSI по +7 800 700-77-08 или на RUSupport@msi.com. Мастер: [ТЕЛЕФОН 1], [EMAIL 1], СНИЛС [СНИЛС 1].', $masked['text']);
+        $this->assertSame(['phone' => 1, 'email' => 1, 'snils' => 1], $masked['types']);
+        $this->llm->assertNothingSent();
+    }
+
     public function test_the_chunk_goes_to_the_model_as_is(): void
     {
         $this->modelFinds([]);

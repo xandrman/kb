@@ -19,8 +19,31 @@ class MaskPersonalData
      */
     public function handle(string $text): array
     {
-        $fragments = [...$this->detectedByModel($text), ...$this->detectedByPattern($text)];
+        return $this->replace($text, [...$this->detectedByModel($text), ...$this->detectedByPattern($text, withContacts: false)]);
+    }
 
+    /**
+     * Output guardrail (FR-8): mask by format alone — phones, e-mails, SNILS, card numbers — leaving values found in $allowed.
+     *
+     * Без модели: ответ проверяется быстро. Контакты организаций законно цитируются из фрагментов, которые уже прошли
+     * маскирование при загрузке; значение, которого в них нет, модель взяла не из документов — оно и скрывается.
+     *
+     * @return array{text: string, count: int, types: array<string, int>} masked text, distinct values replaced, their number per type
+     */
+    public function handleByPatterns(string $text, string $allowed = ''): array
+    {
+        return $this->replace($text, array_values(array_filter(
+            $this->detectedByPattern($text, withContacts: true),
+            fn (array $fragment): bool => ! $this->occursIn($fragment, $allowed),
+        )));
+    }
+
+    /**
+     * @param  list<array{text: string, type: PersonalDataType}>  $fragments
+     * @return array{text: string, count: int, types: array<string, int>}
+     */
+    private function replace(string $text, array $fragments): array
+    {
         // Длинные фрагменты — первыми: «Иванов Пётр Сергеевич» не должен распасться на уже заменённое «Иванов»
         usort($fragments, fn (array $left, array $right): int => mb_strlen($right['text']) <=> mb_strlen($left['text']));
 
@@ -47,6 +70,27 @@ class MaskPersonalData
         }
 
         return ['text' => $text, 'count' => count($masked), 'types' => $numbers];
+    }
+
+    /**
+     * Whether the value is in the allowed text: numbers are compared by digits, phones without the country code, e-mails case-insensitively.
+     *
+     * @param  array{text: string, type: PersonalDataType}  $fragment
+     */
+    private function occursIn(array $fragment, string $allowed): bool
+    {
+        if ($fragment['type'] === PersonalDataType::Email) {
+            return str_contains(mb_strtolower($allowed), mb_strtolower($fragment['text']));
+        }
+
+        $digits = (string) preg_replace('/\D/', '', $fragment['text']);
+
+        // «8 800…» и «+7 800…» — один номер: телефон сравнивается без кода страны
+        if ($fragment['type'] === PersonalDataType::Phone) {
+            $digits = substr($digits, -10);
+        }
+
+        return str_contains((string) preg_replace('/\D/', '', $allowed), $digits);
     }
 
     /**
@@ -78,13 +122,26 @@ class MaskPersonalData
     }
 
     /**
-     * Numbers personal by their format alone: a SNILS and a card number passing the Luhn check are never an organization's.
+     * Values recognised by format. A SNILS and a card number passing the Luhn check are never an organization's;
+     * phones and e-mails may be, so they are looked for only when the caller filters out the allowed ones.
      *
      * @return list<array{text: string, type: PersonalDataType}>
      */
-    private function detectedByPattern(string $text): array
+    private function detectedByPattern(string $text, bool $withContacts): array
     {
         $found = [];
+
+        if ($withContacts) {
+            preg_match_all('/(?<![\w@.])(?:\+7|8)[\s\-(]*\d{3}[\s\-)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}(?!\d)/u', $text, $phones);
+            foreach ($phones[0] as $phone) {
+                $found[] = ['text' => $phone, 'type' => PersonalDataType::Phone];
+            }
+
+            preg_match_all('/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/u', $text, $emails);
+            foreach ($emails[0] as $email) {
+                $found[] = ['text' => $email, 'type' => PersonalDataType::Email];
+            }
+        }
 
         preg_match_all('/\b\d{3}-\d{3}-\d{3}[ -]\d{2}\b/u', $text, $snils);
         foreach ($snils[0] as $number) {

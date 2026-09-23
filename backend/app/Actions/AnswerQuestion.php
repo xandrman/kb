@@ -8,6 +8,7 @@ use App\Enums\GuardrailCheckpoint;
 use App\Models\User;
 use App\Neuron\Events\ProgressEvent;
 use App\Neuron\KnowledgeBaseRag;
+use App\Neuron\Nodes\GroundedContextNode;
 use Generator;
 use NeuronAI\Agent\AgentState;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -66,7 +67,23 @@ class AnswerQuestion
 
         /** @var AgentState $state */
         $state = $events->getReturn();
+        $answer = (string) $state->getMessage()->getContent();
 
-        return (string) $state->getMessage()->getContent();
+        // Выходной guardrail (FR-8): телефон, e-mail, СНИЛС или карта, которых нет ни во фрагментах, ни в вопросе, модель
+        // взяла не из документов — значение скрывается, ответ отдаётся. Шаблонами, без LLM: основная защита — маскирование при загрузке
+        $allowed = implode("\n", [$question, ...$state->get(GroundedContextNode::CONTEXT_STATE_KEY, [])]);
+        $masking = $this->maskPersonalData->handleByPatterns($answer, $allowed);
+
+        if ($masking['count'] > 0) {
+            $this->recordGuardrailEvent->handle(
+                $user,
+                GuardrailCheckpoint::OutputPersonalData,
+                GuardrailAction::Masked,
+                MaskPersonalData::summary($masking['types']),
+                $question,
+            );
+        }
+
+        return $masking['text'];
     }
 }

@@ -176,6 +176,21 @@ class KnowledgeBaseAnswerTest extends TestCase
         $this->assertSame($user->id, $event->user_id);
     }
 
+    public function test_contact_data_the_documents_do_not_contain_is_hidden_in_the_answer_and_logged(): void
+    {
+        $this->llm = new FakeAIProvider(new AssistantMessage('Обратитесь на горячую линию 8 800 700 77 08 или к мастеру по +7 912 345-67-89.'));
+        $this->retrieved = [$this->chunk('Горячая линия MSI: 8 800 700 77 08.', 0.9)];
+
+        $answer = $this->answer(AccessLevel::Public, 'Куда обратиться с неисправностью монитора?');
+
+        $this->assertSame('Обратитесь на горячую линию 8 800 700 77 08 или к мастеру по [ТЕЛЕФОН 1].', $answer);
+        $event = GuardrailEvent::sole();
+        $this->assertSame(GuardrailCheckpoint::OutputPersonalData, $event->checkpoint);
+        $this->assertSame(GuardrailAction::Masked, $event->action);
+        $this->assertSame('телефон ×1', $event->reason);
+        $this->assertSame('Куда обратиться с неисправностью монитора?', $event->question);
+    }
+
     public function test_retrieval_runs_with_the_given_clearance(): void
     {
         $this->answer(AccessLevel::Internal, 'Гарантия');

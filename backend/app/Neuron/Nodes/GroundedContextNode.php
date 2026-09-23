@@ -21,6 +21,11 @@ class GroundedContextNode extends Node
     public const string REFUSAL = 'Нет данных в базе знаний.';
 
     /**
+     * Agent state key of the fragment texts the answer was built from.
+     */
+    public const string CONTEXT_STATE_KEY = 'context_fragments';
+
+    /**
      * @param  ToolInterface[]  $tools
      */
     public function __construct(
@@ -41,6 +46,9 @@ class GroundedContextNode extends Node
         }
 
         yield new ProgressEvent('Формирую ответ…');
+
+        // Выходной guardrail сверяет с ними ответ: значения из фрагментов уже прошли маскирование при загрузке
+        $state->set(self::CONTEXT_STATE_KEY, array_map(fn (Chunk $chunk): string => $chunk->getContent(), array_values($event->documents)));
 
         return new AIInferenceEvent(
             instructions: $this->baseInstructions."\n\n<CONTEXT>\n".$this->context($event->documents).'</CONTEXT>',
