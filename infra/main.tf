@@ -580,6 +580,124 @@ resource "docker_container" "app" {
   }
 }
 
+
+# ADR-0026: Docker не создаёт подкаталог при подключении subpath — raw/ и extracted/ должны существовать до старта kb-worker.
+# Запуск от www-data: каталоги сразу получают владельца php-процессов, chown не нужен; на существующих каталогах mkdir -p ничего не меняет
+resource "docker_container" "documents_init" {
+  name  = "kb-documents-init"
+  image = docker_image.app.image_id
+  user  = "www-data"
+
+  # Одноразовый запуск: terraform ждёт завершения и не перезапускает остановленный контейнер
+  must_run = false
+  attach   = true
+  logs     = true
+
+  command = ["mkdir", "-p", "/data/documents/raw", "/data/documents/extracted"]
+
+  volumes {
+    container_path = "/data/documents"
+    volume_name    = docker_volume.documents.name
+  }
+
+  lifecycle {
+    # Пересозданный том — снова пустой: инициализация повторяется вместе с ним
+    replace_triggered_by = [docker_volume.documents]
+
+    postcondition {
+      condition     = self.exit_code == 0
+      error_message = "Не удалось создать подкаталоги kb-documents, смотри docker logs kb-documents-init"
+    }
+  }
+}
+
+resource "docker_container" "worker" {
+  name    = "kb-worker"
+  image   = docker_image.app.image_id
+  restart = "unless-stopped"
+  user    = "www-data"
+
+  # Задачи короткие: ожидание docling — повторная постановка задачи, а не блокировка процесса, поэтому хватает одного процесса.
+  # --tries=0: срок жизни задачи задаёт retryUntil(). --max-time/--memory перезапускают процесс, restart поднимает его снова
+  command = [
+    "php", "artisan", "queue:work", "redis",
+    "--queue=documents,default",
+    "--sleep=3",
+    "--timeout=120",
+    "--tries=0",
+    "--max-time=3600",
+    "--memory=192",
+  ]
+
+  # Миграции выполняет kb-app, подкаталоги raw/ и extracted/ создаёт kb-documents-init (ADR-0026)
+  depends_on = [docker_container.app, docker_container.documents_init]
+
+  env = [
+    "APP_ENV=production",
+    "APP_DEBUG=false",
+    "APP_KEY=${var.app_key}",
+    "APP_URL=https://${var.domain_name}:8001",
+    "LOG_CHANNEL=stderr",
+    # Bootstrap-роль PostgreSQL: она же владелец таблиц. ADR-0014 требует для приложения роль-невладельца — заводится вместе с первой политикой RLS
+    "DB_CONNECTION=pgsql",
+    "DB_HOST=kb-postgres",
+    "DB_PORT=5432",
+    "DB_DATABASE=${var.postgres_db}",
+    "DB_USERNAME=${var.postgres_user}",
+    "DB_PASSWORD=${var.postgres_password}",
+    "REDIS_HOST=kb-redis",
+    "REDIS_PORT=6379",
+    "QUEUE_CONNECTION=redis",
+    "CACHE_STORE=redis",
+    "SESSION_DRIVER=redis",
+    "DOCUMENTS_ROOT=/data/documents",
+    "OTEL_SERVICE_NAME=kb-worker",
+    "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
+    "OTEL_EXPORTER_OTLP_INSECURE=true",
+  ]
+
+  upload {
+    file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
+    content = file("${path.module}/php-fpm/zz-kb.ini")
+  }
+
+  # ADR-0026: оригиналы только на чтение, результат извлечения — на запись; корень тома воркеру не виден
+  mounts {
+    type      = "volume"
+    source    = docker_volume.documents.name
+    target    = "/data/documents/raw"
+    read_only = true
+
+    volume_options {
+      subpath = "raw"
+    }
+  }
+
+  mounts {
+    type   = "volume"
+    source = docker_volume.documents.name
+    target = "/data/documents/extracted"
+
+    volume_options {
+      subpath = "extracted"
+    }
+  }
+
+  # Больше --timeout: по SIGTERM текущая задача успевает завершиться
+  stop_timeout = 150
+
+  healthcheck {
+    test     = ["CMD-SHELL", "pgrep -f queue:work"]
+    interval = "30s"
+    timeout  = "3s"
+    retries  = 3
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
 resource "docker_container" "keycloak" {
   name    = "kb-keycloak"
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"

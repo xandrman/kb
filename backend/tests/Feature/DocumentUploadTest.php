@@ -60,7 +60,7 @@ class DocumentUploadTest extends TestCase
         $this->assertSame(DocumentStatus::Pending, $document->status);
         $this->assertSame(auth()->id(), $document->uploaded_by);
 
-        Queue::assertPushed(ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document));
+        Queue::assertPushedOn('documents', ProcessDocument::class, fn (ProcessDocument $job): bool => $job->document->is($document));
     }
 
     public function test_a_file_uploaded_again_is_registered_as_a_duplicate_without_reprocessing(): void
