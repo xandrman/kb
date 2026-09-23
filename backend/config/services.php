@@ -46,6 +46,13 @@ return [
         'dimension' => (int) env('QDRANT_DIMENSION', 1536),
     ],
 
+    // ADR-0007: граф знаний
+    'neo4j' => [
+        'uri' => env('NEO4J_URI'),
+        'username' => env('NEO4J_USERNAME', 'neo4j'),
+        'password' => env('NEO4J_PASSWORD'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

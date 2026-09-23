@@ -405,6 +405,12 @@ resource "docker_container" "neo4j" {
   image   = "neo4j:2026.08.1@sha256:d8f4c156caa3af76499134947deb11d13042e471d9733060449f2a01eb7a248e"
   restart = "unless-stopped"
 
+  # Пароль задаётся только при первом старте с пустым томом: auth хранится в /data, смена пароля — ALTER USER или пересоздание тома.
+  # Без NEO4J_AUTH остаётся neo4j/neo4j с обязательной сменой, и сервер отклоняет любые запросы (CredentialsExpired)
+  env = [
+    "NEO4J_AUTH=neo4j/${var.neo4j_password}",
+  ]
+
   volumes {
     container_path = "/data"
     volume_name    = docker_volume.neo4j_data.name
@@ -663,6 +669,10 @@ resource "docker_container" "worker" {
     "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
     "EMBEDDING_MODEL=default",
     "QDRANT_URL=http://kb-qdrant:6333",
+    # ADR-0007: граф знаний
+    "NEO4J_URI=bolt://kb-neo4j:7687",
+    "NEO4J_USERNAME=neo4j",
+    "NEO4J_PASSWORD=${var.neo4j_password}",
   ]
 
   upload {

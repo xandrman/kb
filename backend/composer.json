@@ -14,6 +14,7 @@
         "laravel/mcp": "^1.0",
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
+        "laudis/neo4j-php-client": "^3.4",
         "neuron-core/neuron-ai": "^3.17",
         "socialiteproviders/keycloak": "^5.3",
         "spatie/laravel-permission": "^8.3"

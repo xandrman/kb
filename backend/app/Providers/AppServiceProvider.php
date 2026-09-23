@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\Embeddings\OpenAILikeEmbeddings;
+use NeuronAI\RAG\GraphStore\GraphStoreInterface;
+use NeuronAI\RAG\GraphStore\Neo4jGraphStore;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -46,6 +48,12 @@ class AppServiceProvider extends ServiceProvider
             collectionUrl: rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection').'/',
             key: config('services.qdrant.key'),
             dimension: config('services.qdrant.dimension'),
+        ));
+
+        $this->app->bind(GraphStoreInterface::class, fn (): Neo4jGraphStore => new Neo4jGraphStore(
+            uri: config('services.neo4j.uri'),
+            username: config('services.neo4j.username'),
+            password: config('services.neo4j.password'),
         ));
     }
 

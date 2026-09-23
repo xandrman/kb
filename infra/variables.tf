@@ -44,6 +44,17 @@ variable "postgres_password" {
   sensitive   = true
 }
 
+variable "neo4j_password" {
+  description = "Password of the 'neo4j' user (applied only on the first start with an empty data volume; generate: openssl rand -hex 24)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = length(var.neo4j_password) >= 8
+    error_message = "neo4j_password must be at least 8 characters (Neo4j minimum)."
+  }
+}
+
 variable "keycloak_admin_username" {
   description = "Bootstrap admin username for Keycloak (applied only on the first start with an empty database)"
   type        = string
