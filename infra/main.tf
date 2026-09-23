@@ -527,7 +527,7 @@ resource "docker_container" "app" {
 
   depends_on = [docker_container.postgres, docker_container.redis]
 
-  env = [
+  env = concat([
     "APP_ENV=production",
     "APP_DEBUG=false",
     "APP_KEY=${var.app_key}",
@@ -555,7 +555,7 @@ resource "docker_container" "app" {
     "KEYCLOAK_CLIENT_ID=kb-app",
     "KEYCLOAK_CLIENT_SECRET=${var.app_oauth_client_secret}",
     "KEYCLOAK_REDIRECT_URI=https://${var.domain_name}:8001/auth/keycloak/callback",
-  ]
+  ], local.ai_services_env)
 
   upload {
     file    = "/usr/local/etc/php-fpm.d/zz-kb.conf"
@@ -684,7 +684,7 @@ resource "docker_container" "worker" {
 
 # Окружение задач очереди: общее у kb-worker и kb-graph-worker
 locals {
-  worker_env = [
+  worker_env = concat([
     "APP_ENV=production",
     "APP_DEBUG=false",
     "APP_KEY=${var.app_key}",
@@ -710,10 +710,14 @@ locals {
     "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
     "DOCLING_VLM_MODEL=default",
     "DOCLING_CHUNK_TOKENIZER=${local.docling_tokenizer_path}",
-    # ADR-0009: извлечение графа (FR-4)
+  ], local.ai_services_env)
+
+  # Модели и хранилища знаний: ими пользуются и конвейер (воркеры), и поиск по запросу пользователя (kb-app)
+  ai_services_env = [
+    # ADR-0009: генеративная модель — извлечение графа (FR-4) и ответ (FR-5)
     "LLM_URL=http://kb-vllm-generate:8000/v1",
     "LLM_MODEL=default",
-    # ADR-0010/0006: эмбеддинги чанков и векторный индекс
+    # ADR-0010/0006: эмбеддинги и векторный индекс чанков
     "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
     "EMBEDDING_MODEL=default",
     "QDRANT_URL=http://kb-qdrant:6333",
@@ -721,6 +725,9 @@ locals {
     "NEO4J_URI=bolt://kb-neo4j:7687",
     "NEO4J_USERNAME=neo4j",
     "NEO4J_PASSWORD=${var.neo4j_password}",
+    # ADR-0011: реранкер выдачи
+    "RERANKER_URL=http://kb-vllm-reranker:8000",
+    "RERANKER_MODEL=default",
   ]
 }
 

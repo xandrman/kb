@@ -7,6 +7,7 @@ use App\Actions\MergeEntitySynonyms;
 use App\Contracts\DocumentStorage;
 use App\Http\Responses\KeycloakLogoutResponse;
 use App\Models\User;
+use App\Neuron\PostProcessor\RerankerPostProcessor;
 use App\Services\LocalDocumentStorage;
 use App\Socialite\KeycloakProvider;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse;
@@ -59,6 +60,13 @@ class AppServiceProvider extends ServiceProvider
             key: config('services.qdrant.key'),
             topK: 10,
             dimension: config('services.qdrant.dimension'),
+        ));
+
+        $this->app->bind(RerankerPostProcessor::class, fn (): RerankerPostProcessor => new RerankerPostProcessor(
+            key: '',
+            model: config('services.reranker.model'),
+            topN: config('services.reranker.top_n'),
+            host: config('services.reranker.url'),
         ));
 
         $this->app->bind(GraphStoreInterface::class, fn (): Neo4jGraphStore => new Neo4jGraphStore(

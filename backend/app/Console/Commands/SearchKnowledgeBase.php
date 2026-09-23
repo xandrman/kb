@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\AccessLevel;
+use App\Neuron\PostProcessor\RerankerPostProcessor;
 use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\RAG\Document as Chunk;
 
-#[Signature('kb:search {question : Вопрос пользователя} {--clearance=public : Допуск: public, internal или confidential}')]
+#[Signature('kb:search {question : Вопрос пользователя} {--clearance=public : Допуск: public, internal или confidential} {--no-rerank : Показать выдачу до реранкера}')]
 #[Description('Показать чанки, которые гибридный поиск (вектор + граф) находит по вопросу с учётом допуска (FR-5)')]
 class SearchKnowledgeBase extends Command
 {
@@ -28,12 +29,17 @@ class SearchKnowledgeBase extends Command
             return self::INVALID;
         }
 
-        $chunks = app(KnowledgeBaseRetrieval::class, ['clearance' => $clearance])
-            ->retrieve(new UserMessage((string) $this->argument('question')));
+        $question = new UserMessage((string) $this->argument('question'));
+        $chunks = app(KnowledgeBaseRetrieval::class, ['clearance' => $clearance])->retrieve($question);
+        $isReranked = ! $this->option('no-rerank');
 
-        $this->table(['Найден', 'Сходство', 'Документ', 'Страницы', 'Гриф', 'Текст'], array_map(fn (Chunk $chunk): array => [
+        if ($isReranked) {
+            $chunks = app(RerankerPostProcessor::class)->process($question, $chunks);
+        }
+
+        $this->table(['Найден', $isReranked ? 'Реранк' : 'Сходство', 'Документ', 'Страницы', 'Гриф', 'Текст'], array_map(fn (Chunk $chunk): array => [
             ($chunk->metadata['retrieved_by'] ?? '') === 'graph' ? 'граф' : 'вектор',
-            ($chunk->metadata['retrieved_by'] ?? '') === 'graph' ? '—' : number_format($chunk->getScore(), 3),
+            ! $isReranked && ($chunk->metadata['retrieved_by'] ?? '') === 'graph' ? '—' : number_format($chunk->getScore(), 3),
             $chunk->metadata['document_id'] ?? '—',
             implode(', ', $chunk->metadata['page_numbers'] ?? []),
             $chunk->metadata['access_level'] ?? '—',

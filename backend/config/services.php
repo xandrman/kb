@@ -44,6 +44,13 @@ return [
         'model' => env('EMBEDDING_MODEL', 'default'),
     ],
 
+    // ADR-0011: реранкер kb-vllm-reranker — отбор лучших чанков гибридной выдачи (FR-5)
+    'reranker' => [
+        'url' => env('RERANKER_URL'),
+        'model' => env('RERANKER_MODEL', 'default'),
+        'top_n' => (int) env('RERANKER_TOP_N', 5),
+    ],
+
     // ADR-0007: расширение выдачи через граф (FR-5)
     'graph' => [
         // Сколько чанков добавляет обход графа к векторной выдаче
