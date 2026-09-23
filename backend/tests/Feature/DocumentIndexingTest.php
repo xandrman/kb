@@ -140,6 +140,35 @@ class DocumentIndexingTest extends TestCase
         $this->assertGreaterThanOrEqual(0.0, $document->indexing_time);
     }
 
+    public function test_chunks_in_languages_other_than_russian_and_english_are_not_indexed(): void
+    {
+        $this->fakeChunks([
+            $this->chunk(0, 'Холодильник предназначен для замораживания свежих продуктов и хранения замороженных.'),
+            $this->chunk(1, 'Холодильник відповідно до малюнку 1 призначений для заморожування свіжих харчових продуктів.'),
+            $this->chunk(2, 'Do not place hot food in the refrigerator and keep the door closed when it is not used.'),
+        ]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $points = $this->points();
+        $this->assertSame([0, 2], array_map(fn (Chunk $point): int => $point->metadata['chunk_index'], $points));
+        $this->assertSame(IndexDocumentChunks::chunkId($document->id, 2), $points[1]->getId());
+        $this->llm->assertMethodCallCount('structured', 2);
+    }
+
+    public function test_a_document_with_no_russian_or_english_text_fails(): void
+    {
+        $this->fakeChunks([$this->chunk(0, 'Холодильник відповідно до малюнку 1 призначений для заморожування свіжих харчових продуктів.')]);
+        $document = $this->extractedDocument();
+
+        $job = (new IndexDocument($document))->withFakeQueueInteractions();
+        app()->call([$job, 'handle']);
+
+        $job->assertFailed();
+        $this->assertSame([], $this->points());
+    }
+
     public function test_reindexing_replaces_only_the_points_of_the_same_document(): void
     {
         $document = $this->extractedDocument();

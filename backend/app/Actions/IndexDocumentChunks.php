@@ -7,6 +7,7 @@ use App\Enums\AccessLevel;
 use App\Enums\DocumentStatus;
 use App\Jobs\ExtractGraph;
 use App\Models\Document;
+use App\Services\ChunkLanguage;
 use App\Services\DoclingClient;
 use App\Services\KnowledgeGraph;
 use Illuminate\Bus\Batch;
@@ -36,6 +37,7 @@ class IndexDocumentChunks
         private readonly EmbeddingsProviderInterface $embeddings,
         private readonly VectorStoreInterface $vectorStore,
         private readonly KnowledgeGraph $knowledgeGraph,
+        private readonly ChunkLanguage $language,
     ) {}
 
     /**
@@ -45,10 +47,18 @@ class IndexDocumentChunks
     {
         $startedAt = microtime(true);
 
-        $chunks = $this->docling->chunk($this->storage->getExtracted($document->digest), $document->digest.'.json');
+        $allChunks = $this->docling->chunk($this->storage->getExtracted($document->digest), $document->digest.'.json');
+
+        if ($allChunks === []) {
+            throw new RuntimeException('docling не выделил в документе ни одного чанка.');
+        }
+
+        // Корпус русско-английский (ТЗ 4.3): разделы многоязычных руководств на других языках не индексируются.
+        // Номер чанка сохраняется — от него зависит id точки и узла графа
+        $chunks = array_values(array_filter($allChunks, fn (array $chunk): bool => $this->language->isRussianOrEnglish($chunk['text'])));
 
         if ($chunks === []) {
-            throw new RuntimeException('docling не выделил в документе ни одного чанка.');
+            throw new RuntimeException('В документе нет текста на русском или английском языке.');
         }
 
         // Документы кодируются без инструкции: префикс Instruct/Query нужен только запросу (ADR-0010, п. 2)
