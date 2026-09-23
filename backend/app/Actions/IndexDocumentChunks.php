@@ -43,6 +43,8 @@ class IndexDocumentChunks
      */
     public function handle(Document $document): void
     {
+        $startedAt = microtime(true);
+
         $chunks = $this->docling->chunk($this->storage->getExtracted($document->digest), $document->digest.'.json');
 
         if ($chunks === []) {
@@ -59,7 +61,11 @@ class IndexDocumentChunks
         $this->vectorStore->deleteBy(self::SOURCE_TYPE, (string) $document->id);
         $this->vectorStore->addDocuments($points);
 
-        $document->update(['status' => DocumentStatus::Indexed, 'error' => null]);
+        $document->update([
+            'status' => DocumentStatus::Indexed,
+            'indexing_time' => microtime(true) - $startedAt,
+            'error' => null,
+        ]);
 
         $this->dispatchGraphExtraction($document, $chunks);
     }
@@ -82,8 +88,13 @@ class IndexDocumentChunks
         ))
             ->name("graph:document:{$documentId}")
             ->onQueue('graph')
-            ->then(static function () use ($documentId): void {
-                Document::find($documentId)?->update(['status' => DocumentStatus::Processed, 'error' => null]);
+            ->then(static function (Batch $batch) use ($documentId): void {
+                // От постановки пакета до последней задачи: включает ожидание в очереди graph за другими документами
+                Document::find($documentId)?->update([
+                    'status' => DocumentStatus::Processed,
+                    'graph_time' => $batch->createdAt->diffInSeconds(now()),
+                    'error' => null,
+                ]);
             })
             ->catch(static function (Batch $batch, Throwable $exception) use ($documentId): void {
                 $document = Document::find($documentId);

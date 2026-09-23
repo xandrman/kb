@@ -35,13 +35,9 @@ class DocumentsTable
                     ->label('Статус')
                     ->badge()
                     ->tooltip(fn (Document $record): ?string => $record->error),
-                TextColumn::make('docling_processing_time')
-                    ->label('Время извлечения')
-                    // В образе Alpine у ICU только данные en: русский разделитель задаётся явно
-                    ->numeric(decimalPlaces: 1, decimalSeparator: ',')
-                    ->suffix(' с')
-                    ->placeholder('—')
-                    ->sortable(),
+                self::durationColumn('docling_processing_time', 'Извлечение'),
+                self::durationColumn('indexing_time', 'Индексация'),
+                self::durationColumn('graph_time', 'Граф'),
                 TextColumn::make('created_at')
                     ->label('Загружен')
                     ->dateTime()
@@ -56,5 +52,19 @@ class DocumentsTable
                     ->visible(fn (Document $record): bool => ReprocessDocument::isAllowed($record))
                     ->action(fn (Document $record, ReprocessDocument $reprocess) => $reprocess->handle($record)),
             ]);
+    }
+
+    /**
+     * Duration of an ingest stage, seconds (SRS 6.2).
+     */
+    private static function durationColumn(string $name, string $label): TextColumn
+    {
+        return TextColumn::make($name)
+            ->label($label)
+            // В образе Alpine у ICU только данные en: русский разделитель задаётся явно
+            ->numeric(decimalPlaces: 1, decimalSeparator: ',')
+            ->suffix(' с')
+            ->placeholder('—')
+            ->sortable();
     }
 }

@@ -16,6 +16,9 @@ class ReprocessDocument
         $document->update([
             'status' => DocumentStatus::Pending,
             'docling_task_id' => null,
+            'docling_processing_time' => null,
+            'indexing_time' => null,
+            'graph_time' => null,
             'error' => null,
         ]);
 

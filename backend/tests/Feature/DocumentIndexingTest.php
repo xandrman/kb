@@ -134,7 +134,10 @@ class DocumentIndexingTest extends TestCase
             'document_type_id' => $document->document_type_id,
         ], $points[1]->metadata);
 
-        $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Processed, $document->status);
+        $this->assertIsFloat($document->indexing_time);
+        $this->assertGreaterThanOrEqual(0.0, $document->indexing_time);
     }
 
     public function test_reindexing_replaces_only_the_points_of_the_same_document(): void
@@ -274,6 +277,26 @@ class DocumentIndexingTest extends TestCase
 
         $this->llm->assertMethodCallCount('structured', 3);
         $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
+    }
+
+    public function test_a_finished_graph_batch_records_how_long_the_graph_took(): void
+    {
+        CarbonImmutable::setTestNow('2026-09-23 12:00:42');
+        Bus::fake();
+        $this->fakeChunks([$this->chunk(0, 'Начало работы')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        Bus::assertBatched(function (PendingBatchFake $batch): bool {
+            $batch->thenCallbacks()[0](new BatchFake('fake', $batch->name, 1, 0, 0, [], [], CarbonImmutable::parse('2026-09-23 12:00:00')));
+
+            return true;
+        });
+
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Processed, $document->status);
+        $this->assertSame(42.0, $document->graph_time);
     }
 
     public function test_a_failed_graph_batch_fails_the_document(): void
