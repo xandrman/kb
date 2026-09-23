@@ -49,6 +49,8 @@ return [
         'url' => env('RERANKER_URL'),
         'model' => env('RERANKER_MODEL', 'default'),
         'top_n' => (int) env('RERANKER_TOP_N', 5),
+        // Ниже порога фрагмент не считается источником; на стенде нерелевантное получало 0,01–0,06, релевантное — от 0,27
+        'threshold' => (float) env('RERANKER_THRESHOLD', 0.1),
     ],
 
     // ADR-0007: расширение выдачи через граф (FR-5)

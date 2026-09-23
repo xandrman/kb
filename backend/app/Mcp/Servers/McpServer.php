@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\AskKnowledgeBaseTool;
 use App\Mcp\Tools\ExampleTool;
 use App\Mcp\Tools\PingTool;
 use Laravel\Mcp\Server;
@@ -20,6 +21,7 @@ class McpServer extends Server
     protected array $tools = [
         PingTool::class,
         ExampleTool::class,
+        AskKnowledgeBaseTool::class,
     ];
 
     protected array $resources = [

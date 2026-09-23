@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Mcp\Servers\McpServer;
+use App\Mcp\Tools\AskKnowledgeBaseTool;
 use App\Mcp\Tools\ExampleTool;
 use App\Mcp\Tools\PingTool;
 use App\Models\User;
@@ -17,7 +18,7 @@ class McpServerTest extends TestCase
     public function test_it_registers_its_tools(): void
     {
         McpServer::tools()
-            ->assertRegistered([PingTool::class, ExampleTool::class]);
+            ->assertRegistered([PingTool::class, ExampleTool::class, AskKnowledgeBaseTool::class]);
     }
 
     public function test_example_tool_streams_progress_before_its_result(): void

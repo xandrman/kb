@@ -76,6 +76,29 @@ class KnowledgeGraph
     }
 
     /**
+     * Names of the most specific entities the chunks mention, within the clearance: what the graph expansion starts from.
+     * Specific — with fewer relations: a product model is mentioned everywhere and tells the user nothing.
+     *
+     * @param  list<string>  $chunkIds
+     * @return list<string>
+     */
+    public function mentionedEntityNames(array $chunkIds, AccessLevel $clearance, int $limit): array
+    {
+        if ($chunkIds === []) {
+            return [];
+        }
+
+        return array_column($this->graphStore->query(<<<'CYPHER'
+            MATCH (chunk:Chunk)-[:MENTIONS]->(entity:Entity)
+            WHERE chunk.id IN $chunkIds AND entity.access_rank <= $rank
+            WITH entity, COUNT { (entity)-[:RELATES]-() } AS degree
+            RETURN DISTINCT entity.name AS name, degree
+            ORDER BY degree, name
+            LIMIT $limit
+            CYPHER, ['chunkIds' => $chunkIds, 'rank' => $clearance->rank(), 'limit' => $limit]), 'name');
+    }
+
+    /**
      * Chunks stating relations near the entities of the seed chunks, within the clearance (FR-5, FR-7).
      *
      * Каждый шаг обхода проверяет гриф и ребра, и узла (ADR-0007): путь не проходит через недоступное.

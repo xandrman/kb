@@ -41,9 +41,11 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
     }
 
     /**
+     * Chunks closest to the question among those the clearance opens.
+     *
      * @return list<Chunk>
      */
-    private function vectorSearch(string $question): array
+    public function vectorSearch(string $question): array
     {
         $embedding = $this->embeddings->embedText('Instruct: '.self::QUERY_INSTRUCTION."\nQuery: {$question}");
 
@@ -60,10 +62,28 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
     }
 
     /**
+     * Names of the entities the graph expansion starts from, for the user to see what is being looked up.
+     *
+     * @param  list<Chunk>  $seeds
+     * @return list<string>
+     */
+    public function expansionEntities(array $seeds, int $limit = 3): array
+    {
+        // Сущности лучших по сходству чанков — ближе всего к смыслу вопроса
+        return $this->knowledgeGraph->mentionedEntityNames(
+            array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), array_slice($seeds, 0, 3)),
+            $this->clearance,
+            $limit,
+        );
+    }
+
+    /**
+     * Chunks the graph reaches from the seed chunks.
+     *
      * @param  list<Chunk>  $seeds
      * @return list<Chunk>
      */
-    private function graphExpansion(array $seeds): array
+    public function graphExpansion(array $seeds): array
     {
         $related = $this->knowledgeGraph->relatedChunks(
             array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $seeds),
