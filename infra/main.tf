@@ -729,7 +729,7 @@ resource "docker_container" "keycloak" {
     interval     = "10s"
     timeout      = "5s"
     retries      = 3
-    start_period = "60s"
+    start_period = "1m0s" # в форме, которую возвращает Docker: "60s" даёт вечный diff в plan
   }
 
   wait         = true
