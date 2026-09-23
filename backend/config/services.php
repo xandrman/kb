@@ -27,6 +27,23 @@ return [
         'url' => env('DOCLING_URL'),
         'vlm_url' => env('DOCLING_VLM_URL'),
         'vlm_model' => env('DOCLING_VLM_MODEL', 'default'),
+        // Токенизатор модели эмбеддингов внутри контейнера docling: иначе размер чанка в токенах не совпадёт с моделью
+        'chunk_tokenizer' => env('DOCLING_CHUNK_TOKENIZER'),
+        'chunk_max_tokens' => (int) env('DOCLING_CHUNK_MAX_TOKENS', 512),
+    ],
+
+    // ADR-0010: эмбеддинги чанков в kb-vllm-embedding
+    'embedding' => [
+        'url' => env('EMBEDDING_URL'),
+        'model' => env('EMBEDDING_MODEL', 'default'),
+    ],
+
+    // ADR-0006: векторный индекс чанков; размерность снята с модели фактически (ADR-0010, п. 6)
+    'qdrant' => [
+        'url' => env('QDRANT_URL'),
+        'key' => env('QDRANT_API_KEY'),
+        'collection' => env('QDRANT_COLLECTION', 'chunks'),
+        'dimension' => (int) env('QDRANT_DIMENSION', 1536),
     ],
 
     'postmark' => [

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\DoclingRoute;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 /**
  * Asynchronous conversion API of docling-serve (ADR-0012).
@@ -37,11 +38,37 @@ class DoclingClient
     }
 
     /**
-     * @return array{status: string, errors: array<int, mixed>, document: array<string, mixed>}
+     * @return array{status: string, errors: array<int, mixed>, processing_time: float, document: array<string, mixed>}
      */
     public function result(string $taskId): array
     {
         return $this->request()->get("/v1/result/{$taskId}")->throw()->json();
+    }
+
+    /**
+     * Split a stored DoclingDocument with HybridChunker, without converting the original again (ADR-0012).
+     *
+     * @return list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null}>
+     */
+    public function chunk(string $doclingJson, string $fileName): array
+    {
+        $response = $this->request()
+            ->attach('files', $doclingJson, $fileName)
+            ->post('/v1/chunk/hybrid/file', [
+                'convert_from_formats' => 'json_docling',
+                'chunking_tokenizer' => config('services.docling.chunk_tokenizer'),
+                'chunking_max_tokens' => (string) config('services.docling.chunk_max_tokens'),
+            ])
+            ->throw();
+
+        // Ошибка разбора приходит с кодом 200: статус есть только у документа в теле ответа
+        foreach ($response->json('documents') as $result) {
+            if ($result['status'] !== 'success') {
+                throw new RuntimeException('docling не разбил документ на чанки: '.json_encode($result['errors'], JSON_UNESCAPED_UNICODE));
+            }
+        }
+
+        return $response->json('chunks');
     }
 
     /**

@@ -63,7 +63,7 @@ class PollExtraction implements ShouldQueue
     }
 
     /**
-     * @param  array{status: string, errors: array<int, mixed>, document: array<string, mixed>}  $result
+     * @param  array{status: string, errors: array<int, mixed>, processing_time: float, document: array<string, mixed>}  $result
      */
     private function complete(array $result, StoreDocumentExtraction $storeExtraction): void
     {
@@ -73,6 +73,6 @@ class PollExtraction implements ShouldQueue
             return;
         }
 
-        $storeExtraction->handle($this->document, $result['document']['json_content']);
+        $storeExtraction->handle($this->document, $result['document']['json_content'], $result['processing_time']);
     }
 }

@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
+use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
+use NeuronAI\RAG\Embeddings\OpenAILikeEmbeddings;
+use NeuronAI\RAG\VectorStore\QdrantVectorStore;
+use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,6 +32,21 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(LogoutResponse::class, KeycloakLogoutResponse::class);
 
         $this->app->bind(DocumentStorage::class, fn (): LocalDocumentStorage => new LocalDocumentStorage(Storage::disk('documents')));
+
+        // Без dimensions: модель не матрёшечная, vLLM отклоняет параметр (ADR-0010)
+        $this->app->bind(EmbeddingsProviderInterface::class, fn (): OpenAILikeEmbeddings => new OpenAILikeEmbeddings(
+            baseUri: config('services.embedding.url'),
+            key: '',
+            model: config('services.embedding.model'),
+            dimensions: null,
+        ));
+
+        // Конструктор обращается к Qdrant и создаёт коллекцию, если её нет, — поэтому только ленивое разрешение
+        $this->app->bind(VectorStoreInterface::class, fn (): QdrantVectorStore => new QdrantVectorStore(
+            collectionUrl: rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection').'/',
+            key: config('services.qdrant.key'),
+            dimension: config('services.qdrant.dimension'),
+        ));
     }
 
     /**

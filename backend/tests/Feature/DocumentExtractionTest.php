@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\DoclingRoute;
 use App\Enums\DocumentStatus;
+use App\Jobs\IndexDocument;
 use App\Jobs\PollExtraction;
 use App\Jobs\ProcessDocument;
 use App\Models\Document;
@@ -107,7 +108,7 @@ class DocumentExtractionTest extends TestCase
         $doclingDocument = ['schema_name' => 'DoclingDocument', 'name' => 'manual', 'texts' => [['text' => 'Руководство пользователя']]];
         Http::fake([
             'docling.test/v1/status/poll/*' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'success']),
-            'docling.test/v1/result/*' => Http::response(['status' => 'success', 'errors' => [], 'document' => ['json_content' => $doclingDocument]]),
+            'docling.test/v1/result/*' => Http::response(['status' => 'success', 'errors' => [], 'processing_time' => 8.7, 'document' => ['json_content' => $doclingDocument]]),
         ]);
         $document = $this->extractingDocument();
 
@@ -117,7 +118,10 @@ class DocumentExtractionTest extends TestCase
         Storage::disk('documents')->assertExists($path);
         $this->assertSame($doclingDocument, json_decode(Storage::disk('documents')->get($path), true));
         $this->assertSame([$path], Storage::disk('documents')->allFiles('extracted'));
-        $this->assertSame(DocumentStatus::Extracted, $document->refresh()->status);
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Extracted, $document->status);
+        $this->assertSame(8.7, $document->docling_processing_time);
+        Queue::assertPushedOn('documents', IndexDocument::class, fn (IndexDocument $job): bool => $job->document->is($document));
     }
 
     public function test_a_docling_failure_is_shown_on_the_document(): void

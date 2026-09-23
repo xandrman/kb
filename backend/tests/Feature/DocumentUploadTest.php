@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\AccessLevel;
 use App\Enums\DocumentStatus;
 use App\Filament\Resources\Documents\Pages\CreateDocument;
+use App\Filament\Resources\Documents\Pages\ListDocuments;
 use App\Jobs\ProcessDocument;
 use App\Models\Document;
 use App\Models\DocumentType;
@@ -111,6 +112,13 @@ class DocumentUploadTest extends TestCase
             ->assertHasFormErrors(['file']);
 
         $this->assertSame(0, Document::count());
+    }
+
+    public function test_the_document_list_shows_the_extraction_time(): void
+    {
+        Document::factory()->create(['docling_processing_time' => 8.7]);
+
+        Livewire::test(ListDocuments::class)->assertSee('8,7 с');
     }
 
     /**

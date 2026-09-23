@@ -13,6 +13,7 @@ enum DocumentStatus: string implements HasColor, HasLabel
     case Pending = 'pending';
     case Extracting = 'extracting';
     case Extracted = 'extracted';
+    case Indexed = 'indexed';
     case Failed = 'failed';
     case Duplicate = 'duplicate';
 
@@ -22,6 +23,7 @@ enum DocumentStatus: string implements HasColor, HasLabel
             self::Pending => 'В очереди',
             self::Extracting => 'Извлечение',
             self::Extracted => 'Извлечён',
+            self::Indexed => 'Проиндексирован',
             self::Failed => 'Ошибка',
             self::Duplicate => 'Дубликат',
         };
@@ -32,7 +34,8 @@ enum DocumentStatus: string implements HasColor, HasLabel
         return match ($this) {
             self::Pending => 'gray',
             self::Extracting => 'info',
-            self::Extracted => 'success',
+            self::Extracted => 'info',
+            self::Indexed => 'success',
             self::Failed => 'danger',
             self::Duplicate => 'warning',
         };

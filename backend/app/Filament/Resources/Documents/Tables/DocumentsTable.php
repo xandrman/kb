@@ -32,6 +32,13 @@ class DocumentsTable
                     ->label('Статус')
                     ->badge()
                     ->tooltip(fn (Document $record): ?string => $record->error),
+                TextColumn::make('docling_processing_time')
+                    ->label('Время извлечения')
+                    // В образе Alpine у ICU только данные en: русский разделитель задаётся явно
+                    ->numeric(decimalPlaces: 1, decimalSeparator: ',')
+                    ->suffix(' с')
+                    ->placeholder('—')
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Загружен')
                     ->dateTime()

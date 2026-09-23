@@ -658,6 +658,11 @@ resource "docker_container" "worker" {
     "DOCLING_URL=http://kb-docling:5001",
     "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
     "DOCLING_VLM_MODEL=default",
+    "DOCLING_CHUNK_TOKENIZER=${local.docling_tokenizer_path}",
+    # ADR-0010/0006: эмбеддинги чанков и векторный индекс
+    "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
+    "EMBEDDING_MODEL=default",
+    "QDRANT_URL=http://kb-qdrant:6333",
   ]
 
   upload {

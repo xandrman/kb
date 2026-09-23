@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Contracts\DocumentStorage;
 use App\Enums\DocumentStatus;
+use App\Jobs\IndexDocument;
 use App\Models\Document;
 
 class StoreDocumentExtraction
@@ -15,13 +16,19 @@ class StoreDocumentExtraction
      *
      * @param  array<string, mixed>  $doclingDocument
      */
-    public function handle(Document $document, array $doclingDocument): void
+    public function handle(Document $document, array $doclingDocument, float $processingTime): void
     {
         $this->storage->putExtracted(
             $document->digest,
             json_encode($doclingDocument, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
         );
 
-        $document->update(['status' => DocumentStatus::Extracted, 'error' => null]);
+        $document->update([
+            'status' => DocumentStatus::Extracted,
+            'docling_processing_time' => $processingTime,
+            'error' => null,
+        ]);
+
+        IndexDocument::dispatch($document);
     }
 }
