@@ -27,6 +27,7 @@ use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use RuntimeException;
+use Tests\Fakes\FakeGraphStore;
 use Tests\TestCase;
 
 class DocumentIndexingTest extends TestCase
@@ -43,7 +44,7 @@ class DocumentIndexingTest extends TestCase
 
     private FakeAIProvider $llm;
 
-    private GraphStoreInterface $graphStore;
+    private FakeGraphStore $graphStore;
 
     /**
      * @var list<string>
@@ -83,39 +84,7 @@ class DocumentIndexingTest extends TestCase
 
         $this->fakeLlmAnswers(array_fill(0, 5, self::EMPTY_GRAPH));
 
-        $this->graphStore = new class implements GraphStoreInterface
-        {
-            /**
-             * @var list<array{0: string, 1: array<string, mixed>}>
-             */
-            public array $queries = [];
-
-            public function upsert(string $subject, string $relation, string $object): void {}
-
-            public function delete(string $subject, string $relation, string $object): void {}
-
-            public function get(string $subject): array
-            {
-                return [];
-            }
-
-            public function getRelationshipMap(array $subjects = [], int $depth = 2, int $limit = 30): array
-            {
-                return [];
-            }
-
-            public function getSchema(bool $refresh = false): string
-            {
-                return '';
-            }
-
-            public function query(string $query, array $parameters = []): mixed
-            {
-                $this->queries[] = [$query, $parameters];
-
-                return [];
-            }
-        };
+        $this->graphStore = new FakeGraphStore;
         $this->app->instance(GraphStoreInterface::class, $this->graphStore);
     }
 
@@ -250,6 +219,33 @@ class DocumentIndexingTest extends TestCase
             'keys' => ['Equipment:msi optix mpg341qr', 'Fault:нет изображения'],
             'levels' => ['public', 'internal', 'confidential'],
         ]);
+    }
+
+    public function test_a_merged_synonym_is_written_into_its_canonical_entity(): void
+    {
+        $this->graphStore->responder = fn (string $query): array => str_contains($query, ':ALIAS_OF]')
+            ? [['key' => 'Equipment:msi optix mag301rf', 'canonical' => 'Equipment:optix mag301rf']]
+            : [];
+        $this->fakeLlmAnswers([json_encode([
+            'entities' => [
+                ['name' => 'MSI Optix MAG301RF', 'type' => 'Equipment'],
+                ['name' => 'Нет изображения', 'type' => 'Fault'],
+            ],
+            'relations' => [['source' => 'MSI Optix MAG301RF', 'type' => 'HAS_FAULT', 'target' => 'Нет изображения']],
+        ], JSON_UNESCAPED_UNICODE)]);
+        $this->fakeChunks([$this->chunk(0, 'Нет изображения')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->assertSame(
+            ['Equipment:optix mag301rf', 'Fault:нет изображения'],
+            array_column($this->graphStore->parametersOf('MERGE (chunk:Chunk {id: $chunkId})')[0]['entities'], 'key'),
+        );
+        $this->assertSame(
+            [['source' => 'Equipment:optix mag301rf', 'type' => 'HAS_FAULT', 'target' => 'Fault:нет изображения']],
+            $this->graphStore->parametersOf('CREATE (source)-[:RELATES')[0]['relations'],
+        );
     }
 
     public function test_reindexing_forgets_the_previous_graph_of_the_document_first(): void

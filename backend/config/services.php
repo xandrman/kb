@@ -49,6 +49,8 @@ return [
         'url' => env('QDRANT_URL'),
         'key' => env('QDRANT_API_KEY'),
         'collection' => env('QDRANT_COLLECTION', 'chunks'),
+        // Векторы имён сущностей графа — поиск кандидатов в синонимы (FR-4)
+        'entity_collection' => env('QDRANT_ENTITY_COLLECTION', 'entities'),
         'dimension' => (int) env('QDRANT_DIMENSION', 1536),
     ],
 

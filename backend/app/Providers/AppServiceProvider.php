@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Actions\AuthenticateWithKeycloakBearer;
+use App\Actions\MergeEntitySynonyms;
 use App\Contracts\DocumentStorage;
 use App\Http\Responses\KeycloakLogoutResponse;
 use App\Models\User;
@@ -47,6 +48,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(VectorStoreInterface::class, fn (): QdrantVectorStore => new QdrantVectorStore(
             collectionUrl: rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection').'/',
             key: config('services.qdrant.key'),
+            dimension: config('services.qdrant.dimension'),
+        ));
+
+        // Имена сущностей — своя коллекция: соседей ищем среди десятка ближайших, отбор по типу и порогу делает MergeEntitySynonyms
+        $this->app->when(MergeEntitySynonyms::class)->needs(VectorStoreInterface::class)->give(fn (): QdrantVectorStore => new QdrantVectorStore(
+            collectionUrl: rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.entity_collection').'/',
+            key: config('services.qdrant.key'),
+            topK: 10,
             dimension: config('services.qdrant.dimension'),
         ));
 

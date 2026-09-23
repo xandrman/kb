@@ -40,8 +40,14 @@ class KnowledgeGraph
         $previousKeys = $this->mentionedKeys('MATCH (:Chunk {id: $chunkId})-[:MENTIONS]->(entity:Entity)', ['chunkId' => $chunkId]);
         $this->deleteChunks('{id: $chunkId}', '{chunk_id: $chunkId}', ['chunkId' => $chunkId]);
 
+        $canonicalKeys = $this->canonicalKeys(array_map(
+            fn (ExtractedEntity $entity): string => ExtractChunkGraph::entityKey($entity->type, $entity->name),
+            $graph->entities,
+        ));
+
+        // Слитый синоним пишется в свою каноническую сущность, а не создаётся заново
         $entities = array_map(fn (ExtractedEntity $entity): array => [
-            'key' => ExtractChunkGraph::entityKey($entity->type, $entity->name),
+            'key' => $canonicalKeys[ExtractChunkGraph::entityKey($entity->type, $entity->name)],
             'name' => $entity->name,
             'type' => $entity->type->value,
         ], $graph->entities);
@@ -64,9 +70,72 @@ class KnowledgeGraph
                 type: extracted.type, chunk_id: $chunkId, document_id: $documentId,
                 access_level: $accessLevel, access_rank: $accessRank, department: $department
             }]->(target)
-            CYPHER, ['chunkId' => $chunkId, 'relations' => $this->relations($graph), ...$access]);
+            CYPHER, ['chunkId' => $chunkId, 'relations' => $this->relations($graph, $canonicalKeys), ...$access]);
 
         $this->refreshEntities(array_values(array_unique([...$previousKeys, ...array_column($entities, 'key')])));
+    }
+
+    /**
+     * Entities with the number of chunks that mention them.
+     *
+     * @return list<array{key: string, name: string, type: string, mentions: int}>
+     */
+    public function entities(): array
+    {
+        return $this->graphStore->query(<<<'CYPHER'
+            MATCH (entity:Entity)
+            RETURN entity.key AS key, entity.name AS name, entity.type AS type, COUNT { (:Chunk)-[:MENTIONS]->(entity) } AS mentions
+            ORDER BY key
+            CYPHER);
+    }
+
+    /**
+     * Fold the duplicate into the canonical entity: its mentions and relations move over, its key becomes an alias (FR-4).
+     */
+    public function mergeEntity(string $duplicateKey, string $canonicalKey): void
+    {
+        $this->ensureSchema();
+
+        $parameters = ['duplicate' => $duplicateKey, 'canonical' => $canonicalKey];
+
+        $this->graphStore->query(<<<'CYPHER'
+            MATCH (duplicate:Entity {key: $duplicate}), (canonical:Entity {key: $canonical})
+            MATCH (chunk:Chunk)-[mention:MENTIONS]->(duplicate)
+            MERGE (chunk)-[:MENTIONS]->(canonical)
+            DELETE mention
+            CYPHER, $parameters);
+
+        // Связь между дублем и канонической сущностью после слияния стала бы петлёй — она удаляется вместе с дублем
+        $this->graphStore->query(<<<'CYPHER'
+            MATCH (duplicate:Entity {key: $duplicate}), (canonical:Entity {key: $canonical})
+            MATCH (duplicate)-[relation:RELATES]->(target) WHERE target <> canonical
+            CREATE (canonical)-[moved:RELATES]->(target)
+            SET moved = properties(relation)
+            DELETE relation
+            CYPHER, $parameters);
+
+        $this->graphStore->query(<<<'CYPHER'
+            MATCH (duplicate:Entity {key: $duplicate}), (canonical:Entity {key: $canonical})
+            MATCH (source)-[relation:RELATES]->(duplicate) WHERE source <> canonical
+            CREATE (source)-[moved:RELATES]->(canonical)
+            SET moved = properties(relation)
+            DELETE relation
+            CYPHER, $parameters);
+
+        $this->graphStore->query(<<<'CYPHER'
+            MATCH (duplicate:Entity {key: $duplicate}), (canonical:Entity {key: $canonical})
+            OPTIONAL MATCH (alias:Alias)-[link:ALIAS_OF]->(duplicate)
+            DELETE link
+            WITH duplicate, canonical, collect(alias) AS aliases
+            MERGE (own:Alias {key: $duplicate})
+            WITH duplicate, canonical, aliases + own AS aliases
+            UNWIND aliases AS alias
+            MERGE (alias)-[:ALIAS_OF]->(canonical)
+            WITH DISTINCT duplicate
+            DETACH DELETE duplicate
+            CYPHER, $parameters);
+
+        $this->refreshEntities([$canonicalKey]);
     }
 
     /**
@@ -141,9 +210,30 @@ class KnowledgeGraph
     }
 
     /**
+     * @param  list<string>  $keys
+     * @return array<string, string> every key mapped to its canonical entity key (itself when it is not an alias)
+     */
+    private function canonicalKeys(array $keys): array
+    {
+        $canonical = array_combine($keys, $keys);
+
+        $aliases = $this->graphStore->query(
+            'UNWIND $keys AS key MATCH (:Alias {key: key})-[:ALIAS_OF]->(entity:Entity) RETURN key, entity.key AS canonical',
+            ['keys' => array_values(array_unique($keys))],
+        );
+
+        foreach ($aliases as $alias) {
+            $canonical[$alias['key']] = $alias['canonical'];
+        }
+
+        return $canonical;
+    }
+
+    /**
+     * @param  array<string, string>  $canonicalKeys
      * @return list<array{source: string, type: string, target: string}>
      */
-    private function relations(ExtractedGraph $graph): array
+    private function relations(ExtractedGraph $graph, array $canonicalKeys): array
     {
         // Связь ссылается на имя; тип конца восстанавливается по сущностям чанка и допустимому направлению связи
         $typesByName = [];
@@ -155,12 +245,11 @@ class KnowledgeGraph
         foreach ($graph->relations as $relation) {
             foreach ($typesByName[$relation->source] ?? [] as $sourceType) {
                 foreach ($typesByName[$relation->target] ?? [] as $targetType) {
-                    if ($relation->type->connects($sourceType, $targetType)) {
-                        $relations[] = [
-                            'source' => ExtractChunkGraph::entityKey($sourceType, $relation->source),
-                            'type' => $relation->type->value,
-                            'target' => ExtractChunkGraph::entityKey($targetType, $relation->target),
-                        ];
+                    $source = $canonicalKeys[ExtractChunkGraph::entityKey($sourceType, $relation->source)];
+                    $target = $canonicalKeys[ExtractChunkGraph::entityKey($targetType, $relation->target)];
+
+                    if ($source !== $target && $relation->type->connects($sourceType, $targetType)) {
+                        $relations[] = ['source' => $source, 'type' => $relation->type->value, 'target' => $target];
                     }
                 }
             }
@@ -181,6 +270,7 @@ class KnowledgeGraph
         foreach ([
             'CREATE CONSTRAINT entity_key IF NOT EXISTS FOR (entity:Entity) REQUIRE entity.key IS UNIQUE',
             'CREATE CONSTRAINT chunk_id IF NOT EXISTS FOR (chunk:Chunk) REQUIRE chunk.id IS UNIQUE',
+            'CREATE CONSTRAINT alias_key IF NOT EXISTS FOR (alias:Alias) REQUIRE alias.key IS UNIQUE',
             'CREATE INDEX chunk_document IF NOT EXISTS FOR (chunk:Chunk) ON (chunk.document_id)',
             'CREATE INDEX relates_chunk IF NOT EXISTS FOR ()-[relation:RELATES]-() ON (relation.chunk_id)',
             'CREATE INDEX relates_document IF NOT EXISTS FOR ()-[relation:RELATES]-() ON (relation.document_id)',
