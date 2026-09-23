@@ -5,13 +5,17 @@ namespace App\Actions;
 use App\Contracts\DocumentStorage;
 use App\Enums\AccessLevel;
 use App\Enums\DocumentStatus;
+use App\Jobs\ExtractGraph;
 use App\Models\Document;
 use App\Services\DoclingClient;
+use Illuminate\Bus\Batch;
+use Illuminate\Support\Facades\Bus;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use Ramsey\Uuid\Uuid;
 use RuntimeException;
+use Throwable;
 
 class IndexDocumentChunks
 {
@@ -54,6 +58,36 @@ class IndexDocumentChunks
         $this->vectorStore->addDocuments($points);
 
         $document->update(['status' => DocumentStatus::Indexed, 'error' => null]);
+
+        $this->dispatchGraphExtraction($document, $chunks);
+    }
+
+    /**
+     * One job per chunk: the graph workers run them in parallel against the LLM (ADR-0016).
+     *
+     * @param  list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null}>  $chunks
+     */
+    private function dispatchGraphExtraction(Document $document, array $chunks): void
+    {
+        $documentId = $document->id;
+
+        Bus::batch(array_map(
+            fn (array $chunk): ExtractGraph => new ExtractGraph($document, self::chunkId($documentId, $chunk['chunk_index']), $chunk['text']),
+            $chunks,
+        ))
+            ->name("graph:document:{$documentId}")
+            ->onQueue('graph')
+            ->then(static function () use ($documentId): void {
+                Document::find($documentId)?->update(['status' => DocumentStatus::Processed, 'error' => null]);
+            })
+            ->catch(static function (Batch $batch, Throwable $exception) use ($documentId): void {
+                $document = Document::find($documentId);
+
+                if ($document !== null) {
+                    app(MarkDocumentFailed::class)->handle($document, $exception->getMessage());
+                }
+            })
+            ->dispatch();
     }
 
     /**

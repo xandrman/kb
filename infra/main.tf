@@ -638,45 +638,7 @@ resource "docker_container" "worker" {
   # Миграции выполняет kb-app, подкаталоги raw/ и extracted/ создаёт kb-documents-init (ADR-0026)
   depends_on = [docker_container.app, docker_container.documents_init]
 
-  env = [
-    "APP_ENV=production",
-    "APP_DEBUG=false",
-    "APP_KEY=${var.app_key}",
-    "APP_URL=https://${var.domain_name}:8001",
-    "LOG_CHANNEL=stderr",
-    # Bootstrap-роль PostgreSQL: она же владелец таблиц. ADR-0014 требует для приложения роль-невладельца — заводится вместе с первой политикой RLS
-    "DB_CONNECTION=pgsql",
-    "DB_HOST=kb-postgres",
-    "DB_PORT=5432",
-    "DB_DATABASE=${var.postgres_db}",
-    "DB_USERNAME=${var.postgres_user}",
-    "DB_PASSWORD=${var.postgres_password}",
-    "REDIS_HOST=kb-redis",
-    "REDIS_PORT=6379",
-    "QUEUE_CONNECTION=redis",
-    "CACHE_STORE=redis",
-    "SESSION_DRIVER=redis",
-    "DOCUMENTS_ROOT=/data/documents",
-    "OTEL_SERVICE_NAME=kb-worker",
-    "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
-    "OTEL_EXPORTER_OTLP_INSECURE=true",
-    # ADR-0012: извлечение в docling, сканы распознаёт модель kb-vllm-generate
-    "DOCLING_URL=http://kb-docling:5001",
-    "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
-    "DOCLING_VLM_MODEL=default",
-    "DOCLING_CHUNK_TOKENIZER=${local.docling_tokenizer_path}",
-    # ADR-0009: извлечение графа (FR-4)
-    "LLM_URL=http://kb-vllm-generate:8000/v1",
-    "LLM_MODEL=default",
-    # ADR-0010/0006: эмбеддинги чанков и векторный индекс
-    "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
-    "EMBEDDING_MODEL=default",
-    "QDRANT_URL=http://kb-qdrant:6333",
-    # ADR-0007: граф знаний
-    "NEO4J_URI=bolt://kb-neo4j:7687",
-    "NEO4J_USERNAME=neo4j",
-    "NEO4J_PASSWORD=${var.neo4j_password}",
-  ]
+  env = concat(local.worker_env, ["OTEL_SERVICE_NAME=kb-worker"])
 
   upload {
     file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
@@ -706,6 +668,91 @@ resource "docker_container" "worker" {
   }
 
   # Больше --timeout: по SIGTERM текущая задача успевает завершиться
+  stop_timeout = 150
+
+  healthcheck {
+    test     = ["CMD-SHELL", "pgrep -f queue:work"]
+    interval = "30s"
+    timeout  = "3s"
+    retries  = 3
+  }
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+}
+
+# Окружение задач очереди: общее у kb-worker и kb-graph-worker
+locals {
+  worker_env = [
+    "APP_ENV=production",
+    "APP_DEBUG=false",
+    "APP_KEY=${var.app_key}",
+    "APP_URL=https://${var.domain_name}:8001",
+    "LOG_CHANNEL=stderr",
+    # Bootstrap-роль PostgreSQL: она же владелец таблиц. ADR-0014 требует для приложения роль-невладельца — заводится вместе с первой политикой RLS
+    "DB_CONNECTION=pgsql",
+    "DB_HOST=kb-postgres",
+    "DB_PORT=5432",
+    "DB_DATABASE=${var.postgres_db}",
+    "DB_USERNAME=${var.postgres_user}",
+    "DB_PASSWORD=${var.postgres_password}",
+    "REDIS_HOST=kb-redis",
+    "REDIS_PORT=6379",
+    "QUEUE_CONNECTION=redis",
+    "CACHE_STORE=redis",
+    "SESSION_DRIVER=redis",
+    "DOCUMENTS_ROOT=/data/documents",
+    "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
+    "OTEL_EXPORTER_OTLP_INSECURE=true",
+    # ADR-0012: извлечение в docling, сканы распознаёт модель kb-vllm-generate
+    "DOCLING_URL=http://kb-docling:5001",
+    "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
+    "DOCLING_VLM_MODEL=default",
+    "DOCLING_CHUNK_TOKENIZER=${local.docling_tokenizer_path}",
+    # ADR-0009: извлечение графа (FR-4)
+    "LLM_URL=http://kb-vllm-generate:8000/v1",
+    "LLM_MODEL=default",
+    # ADR-0010/0006: эмбеддинги чанков и векторный индекс
+    "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
+    "EMBEDDING_MODEL=default",
+    "QDRANT_URL=http://kb-qdrant:6333",
+    # ADR-0007: граф знаний
+    "NEO4J_URI=bolt://kb-neo4j:7687",
+    "NEO4J_USERNAME=neo4j",
+    "NEO4J_PASSWORD=${var.neo4j_password}",
+  ]
+}
+
+# Извлечение графа (FR-4): задача на чанк ждёт LLM, поэтому параллельность — число процессов. vLLM держит 16 слотов (ADR-0016),
+# половина оставлена чату. Тома документов не нужны: текст чанка приходит в задаче
+resource "docker_container" "graph_worker" {
+  count   = var.graph_workers
+  name    = "kb-graph-worker-${count.index + 1}"
+  image   = docker_image.app.image_id
+  restart = "unless-stopped"
+  user    = "www-data"
+
+  # --tries=0: число попыток задаёт сама задача ($tries)
+  command = [
+    "php", "artisan", "queue:work", "redis",
+    "--queue=graph",
+    "--sleep=3",
+    "--timeout=120",
+    "--tries=0",
+    "--max-time=3600",
+    "--memory=192",
+  ]
+
+  depends_on = [docker_container.app]
+
+  env = concat(local.worker_env, ["OTEL_SERVICE_NAME=kb-graph-worker"])
+
+  upload {
+    file    = "/usr/local/etc/php/conf.d/zz-kb.ini"
+    content = file("${path.module}/php-fpm/zz-kb.ini")
+  }
+
   stop_timeout = 150
 
   healthcheck {

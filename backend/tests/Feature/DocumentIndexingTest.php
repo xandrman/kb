@@ -5,17 +5,27 @@ namespace Tests\Feature;
 use App\Actions\IndexDocumentChunks;
 use App\Enums\AccessLevel;
 use App\Enums\DocumentStatus;
+use App\Jobs\ExtractGraph;
 use App\Jobs\IndexDocument;
 use App\Models\Document;
+use App\Neuron\GraphExtractor;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Testing\Fakes\BatchFake;
+use Illuminate\Support\Testing\Fakes\PendingBatchFake;
+use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\AbstractEmbeddingsProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\VectorStore\MemoryVectorStore;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
+use NeuronAI\Testing\FakeAIProvider;
+use NeuronAI\Testing\RequestRecord;
+use RuntimeException;
 use Tests\TestCase;
 
 class DocumentIndexingTest extends TestCase
@@ -26,7 +36,11 @@ class DocumentIndexingTest extends TestCase
 
     public const array EMBEDDING = [0.6, 0.8];
 
+    private const string EMPTY_GRAPH = '{"entities":[],"relations":[]}';
+
     private MemoryVectorStore $vectorStore;
+
+    private FakeAIProvider $llm;
 
     /**
      * @var list<string>
@@ -63,6 +77,8 @@ class DocumentIndexingTest extends TestCase
                 return DocumentIndexingTest::EMBEDDING;
             }
         });
+
+        $this->fakeLlmAnswers(array_fill(0, 5, self::EMPTY_GRAPH));
     }
 
     public function test_the_stored_extraction_is_chunked_by_docling_without_converting_the_original_again(): void
@@ -111,7 +127,7 @@ class DocumentIndexingTest extends TestCase
             'document_type_id' => $document->document_type_id,
         ], $points[1]->metadata);
 
-        $this->assertSame(DocumentStatus::Indexed, $document->refresh()->status);
+        $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
     }
 
     public function test_reindexing_replaces_only_the_points_of_the_same_document(): void
@@ -146,6 +162,55 @@ class DocumentIndexingTest extends TestCase
         $this->assertNotSame(IndexDocumentChunks::chunkId($document->id, 0), IndexDocumentChunks::chunkId($document->id + 1, 0));
     }
 
+    public function test_every_chunk_goes_to_the_llm_with_the_document_name_and_the_document_is_processed(): void
+    {
+        $this->fakeChunks([$this->chunk(0, 'Начало работы'), $this->chunk(1, 'Гарантия')]);
+        $document = $this->extractedDocument(['original_name' => 'Optix_MPG341QR_ru.pdf']);
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->llm->assertMethodCallCount('structured', 2);
+        $this->llm->assertSent(fn (RequestRecord $record): bool => $record->messages[0]->getContent() === "Документ: Optix_MPG341QR_ru.pdf\n\nФрагмент:\nГарантия");
+        $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
+    }
+
+    public function test_a_chunk_with_an_invalid_llm_answer_is_skipped(): void
+    {
+        // Neuron повторяет запрос один раз: оба ответа не JSON
+        $this->fakeLlmAnswers(['не JSON', 'снова не JSON', self::EMPTY_GRAPH]);
+        $this->fakeChunks([$this->chunk(0, 'Начало работы'), $this->chunk(1, 'Гарантия')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->llm->assertMethodCallCount('structured', 3);
+        $this->assertSame(DocumentStatus::Processed, $document->refresh()->status);
+    }
+
+    public function test_a_failed_graph_batch_fails_the_document(): void
+    {
+        // Синхронная очередь выполняет задачи пакета внутри его транзакции и откатывает запись статуса — обработчик вызываем напрямую
+        Bus::fake();
+        $this->fakeChunks([$this->chunk(0, 'Начало работы')]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        Bus::assertBatched(function (PendingBatchFake $batch) use ($document): bool {
+            $batch->catchCallbacks()[0](new BatchFake('fake', $batch->name, 1, 1, 1, [], [], CarbonImmutable::now()), new RuntimeException('vLLM недоступен'));
+
+            return $batch->name === "graph:document:{$document->id}"
+                && $batch->queue() === 'graph'
+                && $batch->jobs->count() === 1
+                && $batch->jobs->first() instanceof ExtractGraph
+                && $batch->jobs->first()->chunkId === IndexDocumentChunks::chunkId($document->id, 0);
+        });
+
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Failed, $document->status);
+        $this->assertSame('vLLM недоступен', $document->error);
+    }
+
     public function test_an_unparsable_extraction_fails_the_document_without_retrying(): void
     {
         Http::fake(['docling.test/v1/chunk/hybrid/file' => Http::response([
@@ -172,6 +237,15 @@ class DocumentIndexingTest extends TestCase
 
         $job->assertFailed();
         $this->assertSame(DocumentStatus::Extracted, $document->refresh()->status);
+    }
+
+    /**
+     * @param  list<string>  $answers
+     */
+    private function fakeLlmAnswers(array $answers): void
+    {
+        $this->llm = new FakeAIProvider(...array_map(fn (string $answer): AssistantMessage => new AssistantMessage($answer), $answers));
+        $this->app->bind(GraphExtractor::class, fn (): GraphExtractor => (new GraphExtractor)->setAiProvider($this->llm));
     }
 
     /**

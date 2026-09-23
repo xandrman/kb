@@ -28,6 +28,12 @@ variable "docling_gpus" {
   default     = "3"
 }
 
+variable "graph_workers" {
+  description = "Number of kb-graph-worker containers extracting the knowledge graph in parallel (vLLM generate serves 16 sequences, ADR-0016)"
+  type        = number
+  default     = 8
+}
+
 variable "postgres_db" {
   description = "Name of the database created on the first start of PostgreSQL"
   type        = string
