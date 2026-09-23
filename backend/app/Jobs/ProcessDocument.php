@@ -2,14 +2,27 @@
 
 namespace App\Jobs;
 
+use App\Actions\MarkDocumentFailed;
+use App\Actions\SubmitDocumentExtraction;
+use App\Actions\VerifyDocumentIntegrity;
 use App\Models\Document;
 use DateTimeInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use RuntimeException;
+use Throwable;
 
+/**
+ * First stage of ingest: hand the original over to docling (ADR-0012).
+ */
 class ProcessDocument implements ShouldQueue
 {
     use Queueable;
+
+    /**
+     * The number of seconds to wait before retrying after an exception.
+     */
+    public int $backoff = 30;
 
     /**
      * Create a new job instance.
@@ -31,8 +44,20 @@ class ProcessDocument implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(VerifyDocumentIntegrity $verifyIntegrity, SubmitDocumentExtraction $submitExtraction): void
     {
-        // Заглушка: конвейер извлечения и индексации (ADR-0012) ещё не реализован
+        if (! $verifyIntegrity->handle($this->document)) {
+            // Повтор не поможет: файл на томе не совпадает с зарегистрированным
+            $this->fail(new RuntimeException('Файл на томе не совпадает с дайджестом документа.'));
+
+            return;
+        }
+
+        $submitExtraction->handle($this->document);
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        app(MarkDocumentFailed::class)->handle($this->document, $exception?->getMessage());
     }
 }

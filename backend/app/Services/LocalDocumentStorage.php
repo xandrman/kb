@@ -51,6 +51,43 @@ class LocalDocumentStorage implements DocumentStorage
         $this->disk->delete($this->rawPath($digest));
     }
 
+    public function putExtracted(string $digest, string $json): void
+    {
+        $relativePath = $this->extractedPath($digest);
+        $this->disk->makeDirectory(dirname($relativePath));
+
+        // ADR-0026: воркеру виден только extracted/, поэтому временный файл лежит там же; rename атомарно заменяет прошлое извлечение
+        $temporaryPath = $this->disk->path('extracted/.tmp-'.Str::uuid());
+
+        try {
+            $target = fopen($temporaryPath, 'xb');
+
+            try {
+                if ($target === false || fwrite($target, $json) !== strlen($json) || ! fsync($target)) {
+                    throw new RuntimeException("Unable to write extraction of {$digest}.");
+                }
+            } finally {
+                is_resource($target) && fclose($target);
+            }
+
+            if (! rename($temporaryPath, $this->disk->path($relativePath))) {
+                throw new RuntimeException("Unable to publish extraction of {$digest}.");
+            }
+        } finally {
+            @unlink($temporaryPath);
+        }
+    }
+
+    public function getExtracted(string $digest): string
+    {
+        return $this->disk->get($this->extractedPath($digest));
+    }
+
+    private function extractedPath(string $digest): string
+    {
+        return 'extracted/'.substr($digest, 0, 2).'/'.$digest.'.json';
+    }
+
     private function rawPath(string $digest): string
     {
         return 'raw/'.substr($digest, 0, 2).'/'.$digest;

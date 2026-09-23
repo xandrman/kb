@@ -22,6 +22,13 @@ return [
         'realms' => env('KEYCLOAK_REALM'),
     ],
 
+    // ADR-0012: извлечение текста; VLM-маршрут распознаёт сканы моделью kb-vllm-generate
+    'docling' => [
+        'url' => env('DOCLING_URL'),
+        'vlm_url' => env('DOCLING_VLM_URL'),
+        'vlm_model' => env('DOCLING_VLM_MODEL', 'default'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

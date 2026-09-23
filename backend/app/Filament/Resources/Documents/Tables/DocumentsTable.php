@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Documents\Tables;
 
+use App\Models\Document;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -29,7 +30,8 @@ class DocumentsTable
                     ->label('Отдел'),
                 TextColumn::make('status')
                     ->label('Статус')
-                    ->badge(),
+                    ->badge()
+                    ->tooltip(fn (Document $record): ?string => $record->error),
                 TextColumn::make('created_at')
                     ->label('Загружен')
                     ->dateTime()

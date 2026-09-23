@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AccessLevel;
+use App\Enums\DoclingRoute;
 use App\Enums\DocumentStatus;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'digest', 'mime_type', 'original_name', 'size', 'sku', 'document_type_id',
     'access_level', 'owner_department', 'document_date', 'status', 'uploaded_by',
+    'route', 'docling_task_id', 'error',
 ])]
 class Document extends Model
 {
@@ -31,6 +33,7 @@ class Document extends Model
             'access_level' => AccessLevel::class,
             'document_date' => 'date',
             'status' => DocumentStatus::class,
+            'route' => DoclingRoute::class,
         ];
     }
 

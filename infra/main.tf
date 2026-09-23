@@ -654,6 +654,10 @@ resource "docker_container" "worker" {
     "OTEL_SERVICE_NAME=kb-worker",
     "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_INSECURE=true",
+    # ADR-0012: извлечение в docling, сканы распознаёт модель kb-vllm-generate
+    "DOCLING_URL=http://kb-docling:5001",
+    "DOCLING_VLM_URL=http://kb-vllm-generate:8000/v1/chat/completions",
+    "DOCLING_VLM_MODEL=default",
   ]
 
   upload {
@@ -956,6 +960,27 @@ resource "docker_container" "docling_worker" {
     "TRANSFORMERS_OFFLINE=1",
   ]
 
+  # Чанкеру нужен токенизатор модели эмбеддингов (ADR-0010), иначе размер чанка в токенах не совпадёт с моделью.
+  # В офлайн-режиме HuggingFace его не скачать, а каталог модели целиком не годится: config.json требует исполнения
+  # кода модели (trust_remote_code), который docling не передаёт. Поэтому из тома подключаются только файлы токенизатора
+  dynamic "mounts" {
+    for_each = toset(["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"])
+
+    content {
+      type      = "volume"
+      source    = docker_volume.models["embedding"].name
+      target    = "${local.docling_tokenizer_path}/${mounts.value}"
+      read_only = true
+
+      volume_options {
+        subpath = mounts.value
+      }
+    }
+  }
+
+  # subpath подключается только к существующему файлу: модель должна быть скачана до старта воркера
+  depends_on = [docker_container.hf_cli["embedding"]]
+
   networks_advanced {
     name = docker_network.internal.name
   }
@@ -964,7 +989,9 @@ resource "docker_container" "docling_worker" {
 locals {
   model_path        = "/model"
   docling_redis_url = "redis://kb-redis:6379/1"
-  docling_image     = "quay.io/docling-project/docling-serve-cu128:v1.34.0@sha256:0095f2171deb2f43f0914c198f37c51193dce3c280f95cd2e97023d7dea87176"
+  # Путь передаётся в запросе чанкования как chunking_tokenizer
+  docling_tokenizer_path = "/opt/tokenizers/embedding"
+  docling_image          = "quay.io/docling-project/docling-serve-cu128:v1.34.0@sha256:0095f2171deb2f43f0914c198f37c51193dce3c280f95cd2e97023d7dea87176"
   hf_models = {
     "reranker" = {
       repo     = "BAAI/bge-reranker-v2-m3"
