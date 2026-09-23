@@ -588,6 +588,19 @@ resource "docker_container" "keycloak" {
     "--health-enabled=true",
   ]
 
+  # LibreChat читает OIDC discovery один раз при старте и без Keycloak не регистрирует вход: apply ждёт
+  # готовности realm, прежде чем создавать зависимые контейнеры. curl в образе нет, поэтому bash /dev/tcp
+  healthcheck {
+    test         = ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
+    interval     = "10s"
+    timeout      = "5s"
+    retries      = 3
+    start_period = "60s"
+  }
+
+  wait         = true
+  wait_timeout = 180
+
   upload {
     file = "/opt/keycloak/data/import/realm-kb.json"
     content = templatefile("${path.module}/keycloak/realm-kb.json", {
@@ -935,7 +948,8 @@ resource "docker_container" "librechat" {
   image   = docker_image.librechat.image_id
   restart = "unless-stopped"
 
-  depends_on = [docker_container.librechat_mongo]
+  # Keycloak — через kb-nginx (issuer на domain_name:8002): оба должны быть готовы до первого discovery
+  depends_on = [docker_container.librechat_mongo, docker_container.keycloak, docker_container.nginx]
 
   env = [
     "HOST=0.0.0.0",
