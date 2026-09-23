@@ -8,13 +8,17 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\AbstractEmbeddingsProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
+use NeuronAI\RAG\GraphStore\GraphStoreInterface;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use Psr\Http\Message\RequestInterface;
+use Tests\Fakes\FakeGraphStore;
 use Tests\TestCase;
 
 class KnowledgeBaseRetrievalTest extends TestCase
@@ -31,9 +35,16 @@ class KnowledgeBaseRetrievalTest extends TestCase
      */
     private array $embeddedTexts = [];
 
+    private FakeGraphStore $graphStore;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        config(['services.qdrant.url' => 'http://qdrant.test', 'services.qdrant.collection' => 'chunks']);
+
+        $this->graphStore = new FakeGraphStore;
+        $this->app->instance(GraphStoreInterface::class, $this->graphStore);
 
         $embeddedTexts = &$this->embeddedTexts;
         $this->app->instance(EmbeddingsProviderInterface::class, new class($embeddedTexts) extends AbstractEmbeddingsProvider
@@ -114,6 +125,61 @@ class KnowledgeBaseRetrievalTest extends TestCase
         $this->assertStringContainsString('обновите драйвер видеокарты', $chunks[0]->getContent());
         $this->assertSame(8, $chunks[0]->metadata['document_id']);
         $this->assertSame([24], $chunks[0]->metadata['page_numbers']);
+    }
+
+    public function test_the_graph_adds_chunks_reached_from_the_found_ones_within_the_clearance(): void
+    {
+        $this->fakeQdrant([$this->point('seed-chunk', 'Полосы на экране: проверьте кабель.')]);
+        $this->graphStore->responder = fn (string $query): array => str_contains($query, 'MATCH (seed:Chunk)')
+            ? [
+                ['chunk_id' => 'fix-chunk', 'hops' => 1, 'paths' => 3, 'facts' => ['полосы на экране —FIXED_BY→ обновление драйвера']],
+                ['chunk_id' => 'filtered-chunk', 'hops' => 2, 'paths' => 1, 'facts' => ['монитор —HAS_COMPONENT→ подставка']],
+            ]
+            : [];
+        Http::fake(['qdrant.test/collections/chunks/points/scroll' => Http::response(['result' => ['points' => [
+            ['id' => 'fix-chunk', 'payload' => ['content' => 'Обновите драйвер видеокарты.', 'sourceType' => 'document', 'sourceName' => '5', 'document_id' => 5, 'page_numbers' => [15], 'access_level' => 'internal']],
+        ]]])]);
+
+        $chunks = $this->retrieve('Что делать, если на экране полосы?', AccessLevel::Internal);
+
+        $this->assertSame(['seed-chunk', 'fix-chunk'], array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $chunks));
+        $this->assertSame('vector', $chunks[0]->metadata['retrieved_by']);
+        $this->assertSame('graph', $chunks[1]->metadata['retrieved_by']);
+        $this->assertSame(['полосы на экране —FIXED_BY→ обновление драйвера'], $chunks[1]->metadata['graph_facts']);
+        $this->assertSame([15], $chunks[1]->metadata['page_numbers']);
+        $this->assertSame('Обновите драйвер видеокарты.', $chunks[1]->getContent());
+
+        $graphQuery = $this->graphStore->parametersOf('MATCH (seed:Chunk)')[0];
+        $this->assertSame(['seed-chunk'], $graphQuery['seedChunkIds']);
+        $this->assertSame(AccessLevel::Internal->rank(), $graphQuery['rank']);
+
+        Http::assertSent(fn (Request $request): bool => $request->data()['filter'] === ['must' => [
+            ['has_id' => ['fix-chunk', 'filtered-chunk']],
+            ['key' => 'access_level', 'match' => ['any' => ['public', 'internal']]],
+        ]]);
+    }
+
+    public function test_nothing_found_by_vectors_means_no_graph_expansion(): void
+    {
+        $this->fakeQdrant([]);
+        Http::fake();
+
+        $this->assertSame([], $this->retrieve('Как испечь пирог?', AccessLevel::Confidential));
+        $this->assertSame([], $this->graphStore->queries);
+        Http::assertNothingSent();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function point(string $id, string $content): array
+    {
+        return [
+            'id' => $id,
+            'score' => 0.7,
+            'vector' => self::QUESTION_VECTOR,
+            'payload' => ['content' => $content, 'sourceType' => 'document', 'sourceName' => '8', 'document_id' => 8, 'access_level' => 'public'],
+        ];
     }
 
     /**

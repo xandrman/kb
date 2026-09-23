@@ -76,6 +76,52 @@ class KnowledgeGraph
     }
 
     /**
+     * Chunks stating relations near the entities of the seed chunks, within the clearance (FR-5, FR-7).
+     *
+     * Каждый шаг обхода проверяет гриф и ребра, и узла (ADR-0007): путь не проходит через недоступное.
+     * Через хабы (сущности с числом связей больше $maxDegree) обход не идёт — иначе два шага от модели изделия охватят весь документ.
+     *
+     * @param  list<string>  $seedChunkIds
+     * @return list<array{chunk_id: string, hops: int, paths: int, facts: list<string>}>
+     */
+    public function relatedChunks(array $seedChunkIds, AccessLevel $clearance, int $limit, int $maxDegree): array
+    {
+        if ($seedChunkIds === []) {
+            return [];
+        }
+
+        $rows = $this->graphStore->query(<<<'CYPHER'
+            MATCH (seed:Chunk)-[:MENTIONS]->(start:Entity)
+            WHERE seed.id IN $seedChunkIds AND start.access_rank <= $rank
+            WITH DISTINCT start
+            MATCH (start) ((from:Entity)-[relation:RELATES]-(to:Entity)
+                WHERE COUNT { (from)-[:RELATES]-() } <= $maxDegree
+                  AND relation.access_rank <= $rank AND to.access_rank <= $rank){1,2} (:Entity)
+            UNWIND relation AS fact
+            WITH fact, size(relation) AS hops
+            WHERE NOT fact.chunk_id IN $seedChunkIds
+            WITH fact.chunk_id AS chunkId, min(hops) AS hops, count(*) AS paths,
+                 collect(DISTINCT startNode(fact).name + ' —' + fact.type + '→ ' + endNode(fact).name) AS facts
+            RETURN chunkId AS chunk_id, hops, paths, facts[..5] AS facts
+            ORDER BY hops, paths DESC, chunk_id
+            LIMIT $limit
+            CYPHER, [
+            'seedChunkIds' => $seedChunkIds,
+            'rank' => $clearance->rank(),
+            'limit' => $limit,
+            'maxDegree' => $maxDegree,
+        ]);
+
+        // Neuron переводит в массив только запись: вложенный список приходит как CypherList драйвера
+        return array_map(fn (array $row): array => [
+            'chunk_id' => $row['chunk_id'],
+            'hops' => $row['hops'],
+            'paths' => $row['paths'],
+            'facts' => array_values([...$row['facts']]),
+        ], array_values($rows));
+    }
+
+    /**
      * Entities with the number of chunks that mention them.
      *
      * @return list<array{key: string, name: string, type: string, mentions: int}>

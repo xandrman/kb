@@ -44,6 +44,14 @@ return [
         'model' => env('EMBEDDING_MODEL', 'default'),
     ],
 
+    // ADR-0007: расширение выдачи через граф (FR-5)
+    'graph' => [
+        // Сколько чанков добавляет обход графа к векторной выдаче
+        'expansion_limit' => (int) env('GRAPH_EXPANSION_LIMIT', 5),
+        // Сущности с большим числом связей (модель изделия) — хабы: через них обход не идёт
+        'max_degree' => (int) env('GRAPH_MAX_DEGREE', 30),
+    ],
+
     // ADR-0006: векторный индекс чанков; размерность снята с модели фактически (ADR-0010, п. 6)
     'qdrant' => [
         'url' => env('QDRANT_URL'),
