@@ -70,7 +70,9 @@ class DocumentExtractionTest extends TestCase
 
             return $this->multipartField($request, 'pipeline') === 'vlm'
                 && $vlm['url'] === 'http://vllm.test/v1/chat/completions'
-                && $vlm['params']['model'] === 'default';
+                && $vlm['params']['model'] === 'default'
+                && str_contains($vlm['prompt'], 'Render tables as Markdown pipe tables; never use LaTeX or HTML.')
+                && str_contains($vlm['prompt'], 'start such a table with an empty header row');
         });
 
         $this->assertSame(DoclingRoute::Vlm, $document->refresh()->route);

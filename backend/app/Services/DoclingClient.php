@@ -91,7 +91,9 @@ class DoclingClient
                     'url' => config('services.docling.vlm_url'),
                     'params' => ['model' => config('services.docling.vlm_model'), 'max_tokens' => 4096],
                     'response_format' => 'markdown',
-                    'prompt' => 'Convert this page to markdown. Keep the original language, do not translate.',
+                    // Таблицы — только markdown: docling разбирает их в таблицу документа, а LaTeX оставляет сплошным текстом.
+                    // Пустой заголовок у таблицы без шапки: иначе первая строка данных станет заголовком и подписью всех значений
+                    'prompt' => "Convert this page to markdown. Keep the original language, do not translate. Render tables as Markdown pipe tables; never use LaTeX or HTML. Most tables in forms have no header row: their first row is data, so start such a table with an empty header row, for example:\n| | |\n|---|---|\n| Name | John |\n| Phone | 123 |",
                     'timeout' => 300,
                     'concurrency' => 1,
                 ]),
