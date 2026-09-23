@@ -591,11 +591,12 @@ resource "docker_container" "keycloak" {
   upload {
     file = "/opt/keycloak/data/import/realm-kb.json"
     content = templatefile("${path.module}/keycloak/realm-kb.json", {
-      domain_name           = var.domain_name
-      grafana_client_secret = var.grafana_oauth_client_secret
-      app_client_secret     = var.app_oauth_client_secret
-      seed_username         = var.keycloak_seed_username
-      seed_password         = var.keycloak_seed_password
+      domain_name             = var.domain_name
+      grafana_client_secret   = var.grafana_oauth_client_secret
+      app_client_secret       = var.app_oauth_client_secret
+      librechat_client_secret = var.librechat_oauth_client_secret
+      seed_username           = var.keycloak_seed_username
+      seed_password           = var.keycloak_seed_password
     })
   }
 
@@ -952,10 +953,11 @@ resource "docker_container" "librechat" {
     # а создание аккаунта при первом входе — при ALLOW_SOCIAL_REGISTRATION=true. Доступ при этом закреплён
     # за Keycloak (realm kb + OPENID_REQUIRED_ROLE), локальная email-регистрация и email-вход выключены.
     "OPENID_ISSUER=https://${var.domain_name}:8002/realms/kb",
-    # Клиент kb-app общий с Laravel: токен LibreChat адресован kb-app (aud) и принимается на /mcp.
-    # Клиент требует PKCE S256.
-    "OPENID_CLIENT_ID=kb-app",
-    "OPENID_CLIENT_SECRET=${var.app_oauth_client_secret}",
+    # Вход в LibreChat — свой клиент librechat (PKCE S256); MCP-токены выдаёт kb-app (librechat.yaml), поэтому revoke
+    # MCP-токена снимает только client session kb-app и не трогает вход в LibreChat
+    "OPENID_CLIENT_ID=librechat",
+    "OPENID_CLIENT_SECRET=${var.librechat_oauth_client_secret}",
+    "KB_MCP_CLIENT_SECRET=${var.app_oauth_client_secret}",
     "OPENID_USE_PKCE=true",
     "OPENID_SESSION_SECRET=${var.librechat_session_secret}",
     # Ключ шифрования сохранённых учётных данных: без него токены OAuth MCP не сохраняются ("Invalid key length")

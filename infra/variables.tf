@@ -67,6 +67,12 @@ variable "app_oauth_client_secret" {
   sensitive   = true
 }
 
+variable "librechat_oauth_client_secret" {
+  description = "Client secret of the 'librechat' OIDC client in the 'kb' Keycloak realm (LibreChat sign-in)"
+  type        = string
+  sensitive   = true
+}
+
 variable "keycloak_seed_username" {
   description = "Seed user in the 'kb' realm, granted the kb-admin role (lab bootstrap)"
   type        = string

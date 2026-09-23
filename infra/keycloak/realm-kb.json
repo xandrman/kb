@@ -57,12 +57,11 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "https://${domain_name}:8001/auth/keycloak/callback",
-        "https://${domain_name}/oauth/openid/callback",
         "https://${domain_name}/api/mcp/kb/oauth/callback"
       ],
       "webOrigins": ["https://${domain_name}:8001", "https://${domain_name}"],
       "attributes": {
-        "post.logout.redirect.uris": "https://${domain_name}:8001/*##https://${domain_name}/*",
+        "post.logout.redirect.uris": "https://${domain_name}:8001/*",
         "pkce.code.challenge.method": "S256",
         "backchannel.logout.url": "http://kb-nginx/mcp/backchannel-logout",
         "backchannel.logout.session.required": "true",
@@ -81,6 +80,41 @@
             "introspection.token.claim": "true"
           }
         },
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "librechat",
+      "name": "LibreChat",
+      "description": "Вход в LibreChat. MCP-токены LibreChat получает отдельно, через клиент kb-app",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${librechat_client_secret}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://${domain_name}/oauth/openid/callback"],
+      "webOrigins": ["https://${domain_name}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://${domain_name}/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
         {
           "name": "realm roles",
           "protocol": "openid-connect",
