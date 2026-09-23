@@ -49,6 +49,22 @@ class GroundedContextNode extends Node
     }
 
     /**
+     * The document of the fragment: the model is usually in its name, not in the fragment text.
+     */
+    private function source(Chunk $chunk): string
+    {
+        $parts = array_filter([
+            isset($chunk->metadata['document_name']) ? "документ «{$chunk->metadata['document_name']}»" : null,
+            ! empty($chunk->metadata['also_in']) ? 'тот же текст в «'.implode('», «', $chunk->metadata['also_in']).'»' : null,
+            $chunk->metadata['document_type'] ?? null,
+            ! empty($chunk->metadata['sku']) ? "SKU {$chunk->metadata['sku']}" : null,
+            ! empty($chunk->metadata['page_numbers']) ? 'стр. '.implode(', ', $chunk->metadata['page_numbers']) : null,
+        ]);
+
+        return $parts === [] ? '' : ' ('.implode(', ', $parts).')';
+    }
+
+    /**
      * @param  Chunk[]  $chunks
      */
     private function context(array $chunks): string
@@ -56,7 +72,7 @@ class GroundedContextNode extends Node
         $context = '';
 
         foreach (array_values($chunks) as $number => $chunk) {
-            $context .= 'Фрагмент '.($number + 1).":\n".$chunk->getContent()."\n";
+            $context .= 'Фрагмент '.($number + 1).$this->source($chunk).":\n".$chunk->getContent()."\n";
 
             // Факты графа показывают модели, как фрагмент связан с вопросом, найденным по соседству
             foreach ($chunk->metadata['graph_facts'] ?? [] as $fact) {

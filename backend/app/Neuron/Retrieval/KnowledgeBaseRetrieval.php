@@ -3,6 +3,7 @@
 namespace App\Neuron\Retrieval;
 
 use App\Enums\AccessLevel;
+use App\Models\Document;
 use App\Services\KnowledgeGraph;
 use Illuminate\Support\Facades\Http;
 use NeuronAI\Chat\Messages\Message;
@@ -58,7 +59,7 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
             $chunk->addMetadata('retrieved_by', 'vector');
         }
 
-        return $found;
+        return $this->describeDocuments($found);
     }
 
     /**
@@ -121,7 +122,31 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
             $expansion[] = $chunk;
         }
 
-        return $expansion;
+        return $this->describeDocuments($expansion);
+    }
+
+    /**
+     * Add the document each chunk comes from, so the answer does not mix instructions of different models.
+     *
+     * @param  list<Chunk>  $chunks
+     * @return list<Chunk>
+     */
+    private function describeDocuments(array $chunks): array
+    {
+        $documents = Document::with('documentType')
+            ->findMany(array_unique(array_map(fn (Chunk $chunk): mixed => $chunk->metadata['document_id'] ?? null, $chunks)))
+            ->keyBy('id');
+
+        foreach ($chunks as $chunk) {
+            $document = $documents->get($chunk->metadata['document_id'] ?? null);
+
+            if ($document !== null) {
+                $chunk->addMetadata('document_name', $document->original_name);
+                $chunk->addMetadata('document_type', $document->documentType?->name);
+            }
+        }
+
+        return $chunks;
     }
 
     /**

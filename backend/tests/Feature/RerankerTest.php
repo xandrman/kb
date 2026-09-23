@@ -40,6 +40,23 @@ class RerankerTest extends TestCase
         ], json_decode((string) $request->getBody(), true));
     }
 
+    public function test_the_reranker_sees_the_document_and_sku_but_the_chunks_keep_their_own_text(): void
+    {
+        $reranker = $this->reranker([['index' => 0, 'relevance_score' => 0.99]]);
+        $chunk = new Chunk('На экране видны полосы: измените частоту обновления.');
+        $chunk->metadata = ['document_name' => 'Optix_MAG301RFv1.0_Russian.pdf', 'sku' => 'MAG301RF'];
+
+        $ranked = $reranker->process(new UserMessage('Что делать, если на MAG301RF полосы?'), [$chunk]);
+
+        $this->assertSame(
+            ["Документ: Optix_MAG301RFv1.0_Russian.pdf, SKU: MAG301RF\nНа экране видны полосы: измените частоту обновления."],
+            json_decode((string) $this->requests[0]['request']->getBody(), true)['documents'],
+        );
+        $this->assertSame($chunk, $ranked[0]);
+        $this->assertSame('На экране видны полосы: измените частоту обновления.', $ranked[0]->getContent());
+        $this->assertSame(0.99, $ranked[0]->getScore());
+    }
+
     public function test_nothing_retrieved_means_no_call_to_the_reranker(): void
     {
         $this->assertSame([], $this->reranker([])->process(new UserMessage('Как испечь пирог?'), []));

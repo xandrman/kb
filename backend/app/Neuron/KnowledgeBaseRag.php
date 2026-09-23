@@ -5,6 +5,7 @@ namespace App\Neuron;
 use App\Enums\AccessLevel;
 use App\Neuron\Nodes\GroundedContextNode;
 use App\Neuron\Nodes\ProgressiveRetrievalNode;
+use App\Neuron\PostProcessor\DuplicateChunksPostProcessor;
 use App\Neuron\PostProcessor\RerankerPostProcessor;
 use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use NeuronAI\Providers\AIProviderInterface;
@@ -58,6 +59,7 @@ class KnowledgeBaseRag extends RAG
         // Порог по оценке реранкера: оставшиеся ниже него фрагменты — не источники, и без источников ответа нет
         return $this->postProcessors !== [] ? $this->postProcessors : [
             app(RerankerPostProcessor::class),
+            new DuplicateChunksPostProcessor,
             new FixedThresholdPostProcessor(config('services.reranker.threshold')),
         ];
     }

@@ -107,7 +107,7 @@ class AskKnowledgeBaseToolTest extends TestCase
             ->assertNotificationCount(1)
             ->assertSee('Нет данных в базе знаний.');
 
-        $this->assertSame([], $this->graphStore->queries);
+        $this->assertSame([], $this->graphStore->parametersOf('MATCH (seed:Chunk)'));
         $this->llm->assertNothingSent();
     }
 

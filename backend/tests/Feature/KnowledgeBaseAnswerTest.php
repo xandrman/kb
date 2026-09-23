@@ -64,14 +64,16 @@ class KnowledgeBaseAnswerTest extends TestCase
     public function test_the_answer_is_generated_from_the_retrieved_fragments(): void
     {
         $this->retrieved = [
-            $this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89),
+            $this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89, metadata: [
+                'document_name' => 'Optix_MAG301RFv1.0_Russian.pdf', 'document_type' => 'Руководство', 'sku' => 'SKU-00042', 'page_numbers' => [20],
+            ]),
             $this->chunk('Обновите драйвер видеокарты.', 0.4, ['полосы на экране —FIXED_BY→ обновление драйвера видеокарты']),
         ];
 
         $answer = $this->answer(AccessLevel::Public, 'Что делать, если на экране полосы?');
 
         $this->assertSame('Измените частоту обновления экрана.', $answer);
-        $this->llm->assertSent(fn (RequestRecord $record): bool => str_contains((string) $record->systemPrompt, "Фрагмент 1:\nНа экране видны полосы: измените частоту обновления экрана.")
+        $this->llm->assertSent(fn (RequestRecord $record): bool => str_contains((string) $record->systemPrompt, "Фрагмент 1 (документ «Optix_MAG301RFv1.0_Russian.pdf», Руководство, SKU SKU-00042, стр. 20):\nНа экране видны полосы: измените частоту обновления экрана.")
             && str_contains((string) $record->systemPrompt, "Фрагмент 2:\nОбновите драйвер видеокарты.\nСвязь: полосы на экране —FIXED_BY→ обновление драйвера видеокарты")
             && str_contains((string) $record->systemPrompt, 'ответь ровно: «Нет данных в базе знаний.»'));
     }
@@ -113,11 +115,13 @@ class KnowledgeBaseAnswerTest extends TestCase
 
     /**
      * @param  list<string>  $facts
+     * @param  array<string, mixed>  $metadata
      */
-    private function chunk(string $content, float $score, array $facts = []): Chunk
+    private function chunk(string $content, float $score, array $facts = [], array $metadata = []): Chunk
     {
         $chunk = new Chunk($content);
         $chunk->setScore($score);
+        $chunk->metadata = $metadata;
 
         if ($facts !== []) {
             $chunk->addMetadata('graph_facts', $facts);

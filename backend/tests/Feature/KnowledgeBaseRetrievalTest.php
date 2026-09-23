@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use App\Enums\AccessLevel;
+use App\Models\Document;
 use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -23,6 +25,8 @@ use Tests\TestCase;
 
 class KnowledgeBaseRetrievalTest extends TestCase
 {
+    use RefreshDatabase;
+
     public const array QUESTION_VECTOR = [0.6, 0.8];
 
     /**
@@ -165,8 +169,21 @@ class KnowledgeBaseRetrievalTest extends TestCase
         Http::fake();
 
         $this->assertSame([], $this->retrieve('Как испечь пирог?', AccessLevel::Confidential));
-        $this->assertSame([], $this->graphStore->queries);
+        $this->assertSame([], $this->graphStore->parametersOf('MATCH (seed:Chunk)'));
         Http::assertNothingSent();
+    }
+
+    public function test_found_chunks_carry_the_name_and_type_of_their_document(): void
+    {
+        $document = Document::factory()->create(['original_name' => 'Optix_MAG301RFv1.0_Russian.pdf']);
+        $this->fakeQdrant([[...$this->point('seed-chunk', 'Полосы на экране.'), 'payload' => [
+            'content' => 'Полосы на экране.', 'sourceType' => 'document', 'sourceName' => (string) $document->id, 'document_id' => $document->id, 'access_level' => 'public',
+        ]]]);
+
+        $chunks = $this->retrieve('полосы', AccessLevel::Public);
+
+        $this->assertSame('Optix_MAG301RFv1.0_Russian.pdf', $chunks[0]->metadata['document_name']);
+        $this->assertSame($document->documentType->name, $chunks[0]->metadata['document_type']);
     }
 
     /**

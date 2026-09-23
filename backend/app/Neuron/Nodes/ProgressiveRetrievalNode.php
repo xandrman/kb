@@ -6,7 +6,6 @@ use App\Neuron\Events\ProgressEvent;
 use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
 use Generator;
 use NeuronAI\Agent\AgentState;
-use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Events\DocumentsRetrievedEvent;
 use NeuronAI\RAG\Events\QueryPreProcessedEvent;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
@@ -29,7 +28,7 @@ class ProgressiveRetrievalNode extends Node
         yield new ProgressEvent('Ищу в документах фрагменты по вопросу…');
 
         if (! $this->retrieval instanceof KnowledgeBaseRetrieval) {
-            return new DocumentsRetrievedEvent($query, $this->unique($this->retrieval->retrieve($query)));
+            return new DocumentsRetrievedEvent($query, $this->retrieval->retrieve($query));
         }
 
         $found = $this->retrieval->vectorSearch((string) $query->getContent());
@@ -47,22 +46,7 @@ class ProgressiveRetrievalNode extends Node
 
         yield new ProgressEvent('Проверяю, какие фрагменты отвечают на вопрос (найдено: '.count($chunks).')…');
 
-        return new DocumentsRetrievedEvent($query, $this->unique($chunks));
-    }
-
-    /**
-     * Same text found twice (vector and graph, or two identical chunks) goes to the model once, like in RetrievalNode.
-     *
-     * @param  array<Chunk>  $chunks
-     * @return list<Chunk>
-     */
-    private function unique(array $chunks): array
-    {
-        $unique = [];
-        foreach ($chunks as $chunk) {
-            $unique[md5($chunk->getContent())] ??= $chunk;
-        }
-
-        return array_values($unique);
+        // Дубли не склеиваются здесь: это делает DuplicateChunksPostProcessor после реранкера
+        return new DocumentsRetrievedEvent($query, $chunks);
     }
 }
