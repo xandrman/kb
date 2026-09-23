@@ -35,6 +35,12 @@ class McpServerTest extends TestCase
             ->assertSee('finished, ok!');
     }
 
+    public function test_the_knowledge_base_tool_is_called_search(): void
+    {
+        // LibreChat показывает вызов как «Выполнено: search in kb»
+        McpServer::tool(AskKnowledgeBaseTool::class, ['question' => ''])->assertName('search');
+    }
+
     public function test_legacy_ping_returns_an_empty_result(): void
     {
         $this->actingAs(User::factory()->create(), 'mcp')

@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
-#[Name('ask_knowledge_base')]
+#[Name('search')]
 #[Description('Отвечает на вопрос по корпоративной базе знаний сервисной документации (руководства, инструкции, сервисные акты, паспорта оборудования) с учётом прав пользователя. Если в документах ответа нет, возвращает «Нет данных в базе знаний.» — в этом случае не отвечай из собственных знаний.')]
 class AskKnowledgeBaseTool extends Tool
 {
