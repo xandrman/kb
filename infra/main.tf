@@ -964,7 +964,9 @@ resource "docker_container" "librechat" {
     "CREDS_KEY=${var.librechat_creds_key}",
     "CREDS_IV=${var.librechat_creds_iv}",
     "OPENID_CALLBACK_URL=/oauth/openid/callback",
-    "OPENID_SCOPE=openid profile email offline_access",
+    # Без offline_access: вход LibreChat живёт в онлайн SSO-сессии рядом с MCP-токеном kb-app, поэтому выход из
+    # LibreChat завершает всю сессию (backchannel logout в kb-app), а revoke MCP не удаляет сессию входа
+    "OPENID_SCOPE=openid profile email",
     "OPENID_REUSE_TOKENS=true",
     "OPENID_REQUIRED_ROLE=kb-admin",
     "OPENID_REQUIRED_ROLE_TOKEN_KIND=access",
