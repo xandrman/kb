@@ -34,7 +34,8 @@ resource "docker_container" "nginx" {
   image   = docker_image.nginx.image_id
   restart = "unless-stopped"
 
-  depends_on = [docker_container.app]
+  # Без сертификата nginx не загрузит конфиг с ssl_certificate — первичный выпуск должен завершиться до старта
+  depends_on = [docker_container.app, docker_container.certbot_init]
 
   command = ["/bin/sh", "-c", "rm -f /var/log/nginx/access.log /var/log/nginx/error.log && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
 
@@ -125,12 +126,48 @@ resource "docker_volume" "acme_webroot" {
   name = "kb-acme-webroot"
 }
 
+# Первичный выпуск сертификата до старта nginx: webroot здесь не работает, потому что nginx без
+# сертификата не стартует, а без nginx некому отдать файл челленджа. Standalone-режим certbot сам
+# слушает :80. Сеть хоста вместо публикации порта: docker бронирует опубликованный :80 при каждом
+# старте контейнера и упал бы на работающем nginx, а certbot занимает порт, только когда выпускает.
+# Сертификат уже есть — no-op, продлевает его долгоживущий kb-certbot через webroot
+resource "docker_container" "certbot_init" {
+  name         = "kb-certbot-init"
+  image        = "certbot/certbot:v5.8.0@sha256:f70ad0adbb7e117f0fe42a63c553f28ea451edabc0148757b6efcd9735acaa20"
+  network_mode = "host"
+
+  # Одноразовый запуск: terraform ждёт завершения и не перезапускает остановленный контейнер
+  must_run = false
+  attach   = true
+  logs     = true
+
+  entrypoint = ["/bin/sh", "-c"]
+
+  command = ["test -f /etc/letsencrypt/live/${var.domain_name}/fullchain.pem || certbot certonly --standalone -d ${var.domain_name} --non-interactive --agree-tos --register-unsafely-without-email"]
+
+  volumes {
+    container_path = "/etc/letsencrypt"
+    volume_name    = docker_volume.certbot_data.name
+  }
+
+  # Код выхода проверяется явно: при неудачном выпуске apply останавливается до создания nginx
+  lifecycle {
+    postcondition {
+      condition     = self.exit_code == 0
+      error_message = "certbot не выпустил сертификат, смотри docker logs kb-certbot-init"
+    }
+  }
+}
+
 # certbot в DMZ: исходящий доступ к ACME-серверу Let's Encrypt. certonly идемпотентен —
 # выпускает сертификат, когда его нет, renew-ит, когда срок < 30 дней, иначе no-op.
 resource "docker_container" "certbot" {
   name    = "kb-certbot"
   image   = "certbot/certbot:v5.8.0@sha256:f70ad0adbb7e117f0fe42a63c553f28ea451edabc0148757b6efcd9735acaa20"
   restart = "unless-stopped"
+
+  # Webroot-челлендж отдаёт nginx: до его старта первая итерация цикла упала бы и заснула на сутки
+  depends_on = [docker_container.nginx]
 
   # ENTRYPOINT образа — сам бинарник certbot, поэтому shell-цикл должен жить в entrypoint, а не в command
   entrypoint = ["/bin/sh", "-c"]
