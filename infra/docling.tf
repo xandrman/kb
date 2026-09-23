@@ -49,24 +49,13 @@ resource "docker_container" "docling_worker" {
 
   # Чанкеру нужен токенизатор модели эмбеддингов (ADR-0010), иначе размер чанка в токенах не совпадёт с моделью.
   # В офлайн-режиме HuggingFace его не скачать, а каталог модели целиком не годится: config.json требует исполнения
-  # кода модели (trust_remote_code), который docling не передаёт. Поэтому из тома подключаются только файлы токенизатора
-  dynamic "mounts" {
-    for_each = toset(["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"])
-
-    content {
-      type      = "volume"
-      source    = docker_volume.models["embedding"].name
-      target    = "${local.docling_tokenizer_path}/${mounts.value}"
-      read_only = true
-
-      volume_options {
-        subpath = mounts.value
-      }
-    }
+  # кода модели (trust_remote_code), который docling не передаёт. Поэтому файлы токенизатора скачиваются в отдельный том.
+  # Пока они не скачаны, каталог пуст: задачи чанкования падают и повторяются очередью
+  volumes {
+    container_path = local.docling_tokenizer_path
+    volume_name    = docker_volume.models["embedding-tokenizer"].name
+    read_only      = true
   }
-
-  # subpath подключается только к существующему файлу: модель должна быть скачана до старта воркера
-  depends_on = [docker_container.hf_cli["embedding"]]
 
   networks_advanced {
     name = docker_network.internal.name

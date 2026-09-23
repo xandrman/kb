@@ -1,17 +1,25 @@
 locals {
   model_path = "/model"
+  embedding_model = {
+    repo     = "ai-sage/Giga-Embeddings-instruct-10B-A1.8B-0826"
+    revision = "3bca8f1e01478765d17df9237174a1419c38e496"
+  }
+  # files пуст — скачивается весь репозиторий
   hf_models = {
     "reranker" = {
       repo     = "BAAI/bge-reranker-v2-m3"
       revision = "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+      files    = []
     }
-    "embedding" = {
-      repo     = "ai-sage/Giga-Embeddings-instruct-10B-A1.8B-0826"
-      revision = "3bca8f1e01478765d17df9237174a1419c38e496"
-    }
+    "embedding" = merge(local.embedding_model, { files = [] })
+    # Токенизатор эмбеддинг-модели для чанкования в docling (см. docling_worker)
+    "embedding-tokenizer" = merge(local.embedding_model, {
+      files = ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json"]
+    })
     "generate" = {
       repo     = "Intel/Qwen3.6-35B-A3B-int4-mixed-AutoRound"
       revision = "65f69c73f17488236c85c85211f6ba28d7106157"
+      files    = []
     }
   }
 }
@@ -39,19 +47,19 @@ resource "docker_image" "hf_cli" {
 resource "docker_container" "hf_cli" {
   for_each = local.hf_models
 
-  name     = "kb-hf-cli-${each.key}"
-  image    = docker_image.hf_cli.name
-  attach   = true
-  logs     = true
-  must_run = false
+  name  = "kb-hf-cli-${each.key}"
+  image = docker_image.hf_cli.name
 
-  command = [
-    "hf",
-    "download",
-    each.value.repo,
+  # Загрузка идёт после apply: 20+ минут не укладываются в таймаут создания. vLLM на недокачанной модели падает
+  # и перезапускается, пока загрузка не закончится — hf download кладёт файл на место только целиком.
+  # Ошибку загрузки apply не покажет, смотри docker logs kb-hf-cli-<модель>
+  must_run = false
+  restart  = "on-failure"
+
+  command = concat(["hf", "download", each.value.repo], each.value.files, [
     "--revision", each.value.revision,
     "--local-dir", local.model_path,
-  ]
+  ])
 
   volumes {
     container_path = local.model_path
@@ -60,13 +68,6 @@ resource "docker_container" "hf_cli" {
 
   networks_advanced {
     name = docker_network.dmz.name
-  }
-
-  lifecycle {
-    postcondition {
-      condition     = self.exit_code == 0
-      error_message = "Загрузка ${each.value.repo} завершилась с кодом ${self.exit_code}"
-    }
   }
 }
 
@@ -78,10 +79,6 @@ resource "docker_container" "vllm_generate" {
   ipc_mode = "private"
   shm_size = 16384
 
-  timeouts {
-    create = "3h"
-  }
-
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
@@ -92,6 +89,7 @@ resource "docker_container" "vllm_generate" {
     "OMP_NUM_THREADS=1",
     "NCCL_CUMEM_ENABLE=0",
     "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True",
+    "HF_HUB_OFFLINE=1",
     "OTEL_SERVICE_NAME=kb-vllm-generate",
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
@@ -148,13 +146,10 @@ resource "docker_container" "vllm_embedding" {
   ipc_mode = "private"
   shm_size = 16384
 
-  timeouts {
-    create = "3h"
-  }
-
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+    "HF_HUB_OFFLINE=1",
     "OTEL_SERVICE_NAME=kb-vllm-embedding",
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
@@ -199,13 +194,10 @@ resource "docker_container" "vllm_reranker" {
   ipc_mode = "private"
   shm_size = 16384
 
-  timeouts {
-    create = "3h"
-  }
-
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_reranker_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+    "HF_HUB_OFFLINE=1",
     "OTEL_SERVICE_NAME=kb-vllm-reranker",
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
