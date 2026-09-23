@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\AccessLevel;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
@@ -32,6 +33,18 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The strictest access level the user's roles open; public documents are open to everyone (FR-7).
+     */
+    public function clearance(): AccessLevel
+    {
+        return $this->roles
+            ->pluck('access_level')
+            ->filter(fn (mixed $level): bool => $level instanceof AccessLevel)
+            ->sortBy(fn (AccessLevel $level): int => $level->rank())
+            ->last() ?? AccessLevel::Public;
     }
 
     public function canAccessPanel(Panel $panel): bool
