@@ -25,6 +25,8 @@ mcpServers:
     # title пропускает только [a-zA-Z0-9 ]
     title: "Knowledge Base"
     serverInstructions: true
+    # Без явного false LibreChat по 401 от /mcp при старте включает MCP OAuth и не шлёт headers ниже
+    requiresOAuth: false
     # Токен Keycloak пользователя; права определяет kb-app по подписи токена (ADR-0024, FR-7)
     headers:
       Authorization: "Bearer {{LIBRECHAT_OPENID_ACCESS_TOKEN}}"
