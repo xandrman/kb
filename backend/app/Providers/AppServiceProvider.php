@@ -45,11 +45,13 @@ class AppServiceProvider extends ServiceProvider
         ));
 
         // Конструктор обращается к Qdrant и создаёт коллекцию, если её нет, — поэтому только ленивое разрешение
-        $this->app->bind(VectorStoreInterface::class, fn (): QdrantVectorStore => new QdrantVectorStore(
+        $this->app->bind(QdrantVectorStore::class, fn (): QdrantVectorStore => new QdrantVectorStore(
             collectionUrl: rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection').'/',
             key: config('services.qdrant.key'),
+            topK: config('services.qdrant.search_limit'),
             dimension: config('services.qdrant.dimension'),
         ));
+        $this->app->bind(VectorStoreInterface::class, QdrantVectorStore::class);
 
         // Имена сущностей — своя коллекция: соседей ищем среди десятка ближайших, отбор по типу и порогу делает MergeEntitySynonyms
         $this->app->when(MergeEntitySynonyms::class)->needs(VectorStoreInterface::class)->give(fn (): QdrantVectorStore => new QdrantVectorStore(

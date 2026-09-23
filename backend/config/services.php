@@ -52,6 +52,8 @@ return [
         // Векторы имён сущностей графа — поиск кандидатов в синонимы (FR-4)
         'entity_collection' => env('QDRANT_ENTITY_COLLECTION', 'entities'),
         'dimension' => (int) env('QDRANT_DIMENSION', 1536),
+        // Сколько чанков отдаёт векторный поиск (FR-5)
+        'search_limit' => (int) env('QDRANT_SEARCH_LIMIT', 10),
     ],
 
     // ADR-0007: граф знаний
