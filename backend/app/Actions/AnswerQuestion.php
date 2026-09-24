@@ -76,9 +76,10 @@ class AnswerQuestion
 
         $rag = app(KnowledgeBaseRag::class, ['clearance' => $clearance]);
 
-        // Спан активен и между шагами генератора: поиск, реранкер и вызов модели ложатся в него дочерними
-        $span = $this->tracing->start('rag.answer', ['kb.clearance' => $clearance->value]);
-        $scope = $span->activate();
+        // Спан — родитель шагов агента и между шагами генератора. Отметка глубины: что агент не закрыл сам
+        // (перебор прекращён, поток разорван — PHP выполнит finally при уничтожении генератора), закрывается здесь
+        $depth = $this->tracing->depth();
+        $span = $this->tracing->begin('rag.answer', ['kb.clearance' => $clearance->value]);
 
         try {
             $events = $rag->chat(new UserMessage($question))->events();
@@ -98,8 +99,8 @@ class AnswerQuestion
 
             throw $exception;
         } finally {
-            $scope->detach();
-            $span->end();
+            $this->tracing->unwindTo($depth + 1);
+            $this->tracing->end($span);
         }
 
         // Выходной guardrail (FR-8): ответ со служебным содержимым входа модели не отдаётся вовсе

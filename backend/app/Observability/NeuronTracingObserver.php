@@ -6,14 +6,12 @@ use NeuronAI\Observability\Events\AgentError;
 use NeuronAI\Observability\Events\PostProcessed;
 use NeuronAI\Observability\Events\PostProcessing;
 use NeuronAI\Observability\ObserverInterface;
-use OpenTelemetry\API\Trace\SpanInterface;
-use OpenTelemetry\API\Trace\StatusCode;
 
 /**
  * Neuron events as OpenTelemetry spans (ADR-0022: the Inspector observer is replaced, nothing leaves the perimeter).
  *
- * Спаны не активируются: родитель задаётся явно, поэтому исключение внутри агента не оставит «висящий» контекст.
- * Процесс PHP обрабатывает один запрос или задачу за раз, поэтому открытые спаны — один стек.
+ * Своего состояния нет: спан кладётся в стек Tracing с пометкой «чем закрывается» и снимается по парному событию.
+ * Брошенные спаны снимает владелец конвейера (Tracing::unwindTo), поэтому они не переживают запрос или задачу.
  */
 class NeuronTracingObserver implements ObserverInterface
 {
@@ -26,30 +24,31 @@ class NeuronTracingObserver implements ObserverInterface
         'rag-postprocessing' => 'rag-postprocessed',
     ];
 
-    /**
-     * @var list<array{end: string, span: SpanInterface}>
-     */
-    private array $open = [];
-
     public function __construct(private readonly Tracing $tracing) {}
 
     public function onEvent(string $event, object $source, mixed $data = null, ?string $branchId = null): void
     {
         if (isset(self::PAIRS[$event])) {
-            $parent = $this->open === [] ? null : $this->open[array_key_last($this->open)]['span'];
-            $this->open[] = ['end' => self::PAIRS[$event], 'span' => $this->tracing->start($this->name($event, $source, $data), $this->startAttributes($data), parent: $parent)];
+            $this->tracing->begin($this->name($event, $source, $data), $this->startAttributes($data), tag: self::PAIRS[$event]);
 
             return;
         }
 
         if (in_array($event, self::PAIRS, true)) {
-            $this->finish($event, $data);
+            $span = $this->tracing->takeTagged($event);
+
+            if ($span !== null && $data instanceof PostProcessed) {
+                $span->setAttribute('kb.documents.out', count($data->documents));
+            }
+
+            $span?->end();
 
             return;
         }
 
+        // Исключение вылетело из узла: закрываем спаны Neuron с его причиной, спаны владельца конвейера не трогаем
         if ($event === 'error') {
-            $this->failAll($data);
+            $this->tracing->failTagged($data instanceof AgentError ? $data->exception : null);
         }
     }
 
@@ -71,38 +70,5 @@ class NeuronTracingObserver implements ObserverInterface
     private function startAttributes(mixed $data): array
     {
         return $data instanceof PostProcessing ? ['kb.documents.in' => count($data->documents)] : [];
-    }
-
-    private function finish(string $event, mixed $data): void
-    {
-        // Закрываем самый вложенный незакрытый спан этой пары: события одной пары вложены по порядку
-        for ($index = count($this->open) - 1; $index >= 0; $index--) {
-            if ($this->open[$index]['end'] !== $event) {
-                continue;
-            }
-
-            $span = $this->open[$index]['span'];
-            if ($data instanceof PostProcessed) {
-                $span->setAttribute('kb.documents.out', count($data->documents));
-            }
-            $span->end();
-            array_splice($this->open, $index, 1);
-
-            return;
-        }
-    }
-
-    private function failAll(mixed $data): void
-    {
-        while ($this->open !== []) {
-            $span = array_pop($this->open)['span'];
-            if ($data instanceof AgentError) {
-                Tracing::fail($span, $data->exception);
-            } else {
-                $span->setStatus(StatusCode::STATUS_ERROR);
-            }
-
-            $span->end();
-        }
     }
 }

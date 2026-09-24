@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
@@ -132,6 +133,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // ADR-0022: вместо Inspector (SaaS), которого Neuron подключает по умолчанию, — спаны OpenTelemetry внутри периметра
         EventBus::setDefaultObserver($this->app->make(NeuronTracingObserver::class));
+
+        // Ни одна задача очереди не наследует родителя спана от предыдущей, даже если конвейер не убрал за собой
+        Queue::looping(fn () => $this->app->make(Tracing::class)->unwindTo(0));
 
         // FR-9: запросы через Http (docling, чтение точек Qdrant) тоже несут traceparent и дают клиентский спан
         Http::globalMiddleware($this->app->make(TraceHttpRequests::class));

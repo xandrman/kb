@@ -33,9 +33,9 @@ class AskKnowledgeBaseTool extends Tool
         // FR-7: допуск — из ролей пользователя, которые пришли с его токеном Keycloak
         $clearance = $user->clearance();
 
-        // FR-9: корень шагов запроса в трейсе; активен и между уведомлениями о прогрессе
-        $span = $tracing->start('mcp.tool search', ['enduser.id' => (string) $user->id, 'kb.clearance' => $clearance->value]);
-        $scope = $span->activate();
+        // FR-9: корень шагов запроса в трейсе, родитель и между уведомлениями о прогрессе
+        $depth = $tracing->depth();
+        $span = $tracing->begin('mcp.tool search', ['enduser.id' => (string) $user->id, 'kb.clearance' => $clearance->value]);
 
         try {
             $answering = $answerQuestion->handle($clearance, $validated['question'], $user);
@@ -55,8 +55,8 @@ class AskKnowledgeBaseTool extends Tool
 
             throw $exception;
         } finally {
-            $scope->detach();
-            $span->end();
+            $tracing->unwindTo($depth + 1);
+            $tracing->end($span);
         }
 
         yield Response::text($answer);
