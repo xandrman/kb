@@ -93,6 +93,7 @@ variable "librechat_oauth_client_secret" {
 variable "keycloak_seed_username" {
   description = "Seed user in the 'kb' realm, granted the kb-admin role (lab bootstrap)"
   type        = string
+  default     = "kb-admin"
 }
 
 variable "keycloak_seed_password" {
