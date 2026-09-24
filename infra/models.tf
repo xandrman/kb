@@ -79,6 +79,10 @@ resource "docker_container" "vllm_generate" {
   ipc_mode = "private"
   shm_size = 16384
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
@@ -146,6 +150,10 @@ resource "docker_container" "vllm_embedding" {
   ipc_mode = "private"
   shm_size = 16384
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
@@ -196,6 +204,10 @@ resource "docker_container" "vllm_reranker" {
   runtime  = "nvidia"
   ipc_mode = "private"
   shm_size = 16384
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   env = [
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_reranker_gpus}",

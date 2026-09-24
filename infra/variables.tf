@@ -146,3 +146,9 @@ variable "librechat_creds_iv" {
     error_message = "librechat_creds_iv must be 32 hex characters."
   }
 }
+
+variable "log_network_subnet" {
+  description = "Subnet of kb-logs: the host (dockerd) is .1, Alloy receives syslog on .2 (ADR-0032); must not overlap the site networks"
+  type        = string
+  default     = "10.254.254.0/24"
+}

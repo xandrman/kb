@@ -55,6 +55,10 @@ resource "docker_container" "app" {
   image   = docker_image.app.image_id
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   command = ["sh", "-c", "php artisan migrate --force && exec php-fpm"]
 
   depends_on = [docker_container.postgres, docker_container.redis]
@@ -153,6 +157,10 @@ resource "docker_container" "worker" {
   image   = docker_image.app.image_id
   restart = "unless-stopped"
   user    = "www-data"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   # Задачи короткие: ожидание docling — повторная постановка задачи, а не блокировка процесса, поэтому хватает одного процесса.
   # --tries=0: срок жизни задачи задаёт retryUntil(). --max-time/--memory перезапускают процесс, restart поднимает его снова
@@ -270,6 +278,10 @@ resource "docker_container" "graph_worker" {
   image   = docker_image.app.image_id
   restart = "unless-stopped"
   user    = "www-data"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   # --tries=0: число попыток задаёт сама задача ($tries)
   command = [

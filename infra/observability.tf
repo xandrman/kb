@@ -7,6 +7,10 @@ resource "docker_container" "grafana" {
   image   = "grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0"
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   env = [
     "GF_SERVER_ROOT_URL=https://${var.domain_name}:8003",
     "GF_SERVER_DOMAIN=${var.domain_name}",
@@ -61,6 +65,10 @@ resource "docker_container" "tempo" {
   image   = "grafana/tempo:3.0.3@sha256:0296560ac66f8a3600d7fb3014a52c189d4d9c3549ad6ff441bf2409855d68d5"
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   command = ["-target=all", "-config.file", "/etc/tempo/tempo.yaml"]
 
   upload {
@@ -86,8 +94,11 @@ resource "docker_container" "alloy" {
   command = ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
 
   upload {
-    file    = "/etc/alloy/config.alloy"
-    content = file("${path.module}/alloy/config.alloy")
+    file = "/etc/alloy/config.alloy"
+    content = templatefile("${path.module}/alloy/config.alloy", {
+      log_collector_address = local.log_collector_address
+      log_gateway_regex     = replace(cidrhost(var.log_network_subnet, 1), ".", "\\\\.")
+    })
   }
 
   volumes {
@@ -98,6 +109,12 @@ resource "docker_container" "alloy" {
 
   networks_advanced {
     name = docker_network.internal.name
+  }
+
+  # Приём syslog от dockerd по фиксированному адресу (ADR-0032)
+  networks_advanced {
+    name         = docker_network.logs.name
+    ipv4_address = local.log_collector_address
   }
 }
 
@@ -110,6 +127,10 @@ resource "docker_container" "loki" {
   image   = "grafana/loki:3.7.8@sha256:81a6802ec4bd1b88c564494f06376889ed022998a188826190d26d2754ac2aae"
   restart = "unless-stopped"
   user    = "root"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   command = ["-target=all", "-config.file", "/etc/loki/loki.yaml"]
 
@@ -136,6 +157,10 @@ resource "docker_container" "prometheus" {
   name    = "kb-prometheus"
   image   = "prom/prometheus:v3.14.0@sha256:e906cef998316bbe319f98711e1b4d8613ad37e14b08ff831d7036e77b7464f9"
   restart = "unless-stopped"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   command = [
     "--config.file=/etc/prometheus/prometheus.yml",
@@ -165,6 +190,10 @@ resource "docker_container" "dcgm_exporter" {
   image   = "nvidia/dcgm-exporter:4.6.1-4.8.4-distroless@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003"
   restart = "unless-stopped"
   runtime = "nvidia"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   env = [
     "NVIDIA_VISIBLE_DEVICES=all",

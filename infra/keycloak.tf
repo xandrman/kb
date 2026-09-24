@@ -7,6 +7,10 @@ resource "docker_container" "keycloak" {
   image   = "quay.io/keycloak/keycloak:26.7.4@sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf"
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   env = [
     "KC_BOOTSTRAP_ADMIN_USERNAME=${var.keycloak_admin_username}",
     "KC_BOOTSTRAP_ADMIN_PASSWORD=${var.keycloak_admin_password}",

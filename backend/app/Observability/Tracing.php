@@ -2,6 +2,7 @@
 
 namespace App\Observability;
 
+use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
@@ -116,6 +117,14 @@ class Tracing
 
             $span->end();
         }
+    }
+
+    /**
+     * The span a new span would be the child of: the top of the stack, or the active one (invalid outside a trace).
+     */
+    public function current(): SpanInterface
+    {
+        return $this->stack !== [] ? $this->stack[array_key_last($this->stack)]['span'] : Span::getCurrent();
     }
 
     public function depth(): int

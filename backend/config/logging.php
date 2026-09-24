@@ -1,5 +1,6 @@
 <?php
 
+use App\Observability\TraceLogRecords;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -110,7 +111,8 @@ return [
                 'stream' => 'php://stderr',
             ],
             'formatter' => env('LOG_STDERR_FORMATTER'),
-            'processors' => [PsrLogMessageProcessor::class],
+            // trace_id текущего спана — связь строки лога с трейсом в Tempo (ADR-0032)
+            'processors' => [PsrLogMessageProcessor::class, TraceLogRecords::class],
         ],
 
         'syslog' => [

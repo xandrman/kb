@@ -163,6 +163,10 @@ resource "docker_container" "certbot" {
   image   = "certbot/certbot:v5.8.0@sha256:f70ad0adbb7e117f0fe42a63c553f28ea451edabc0148757b6efcd9735acaa20"
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   # Webroot-челлендж отдаёт nginx: до его старта первая итерация цикла упала бы и заснула на сутки
   depends_on = [docker_container.nginx]
 

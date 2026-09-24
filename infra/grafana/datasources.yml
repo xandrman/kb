@@ -30,8 +30,10 @@ datasources:
     url: http://kb-loki:3100
     jsonData:
       derivedFields:
+        # trace_id Alloy кладёт в структурированные метаданные записи (ADR-0032)
         - datasourceUid: tempo
-          matcherRegex: "trace_id=(\\w+)"
+          matcherType: label
+          matcherRegex: trace_id
           name: TraceID
           url: "$${__value.raw}"
     editable: false

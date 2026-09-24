@@ -10,6 +10,10 @@ resource "docker_container" "docling" {
   image   = local.docling_image
   restart = "unless-stopped"
 
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
+
   env = [
     "UVICORN_HOST=0.0.0.0",
     "UVICORN_PORT=5001",
@@ -33,6 +37,10 @@ resource "docker_container" "docling_worker" {
   image   = local.docling_image
   restart = "unless-stopped"
   runtime = "nvidia"
+
+  # Логи — драйвером syslog в Alloy (ADR-0032)
+  log_driver = "syslog"
+  log_opts   = local.syslog_log_opts
 
   command = ["docling-serve", "rq-worker"]
 
