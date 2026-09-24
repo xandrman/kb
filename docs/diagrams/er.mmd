@@ -1,0 +1,107 @@
+---
+title: ER — PostgreSQL
+---
+erDiagram
+    users ||--o{ model_has_roles : "имеет роли"
+    roles ||--o{ model_has_roles : "назначена"
+    users ||--o{ model_has_permissions : "имеет права"
+    permissions ||--o{ model_has_permissions : "назначено"
+    roles ||--o{ role_has_permissions : "включает"
+    permissions ||--o{ role_has_permissions : "входит в"
+
+    document_types ||--o{ documents : "классифицирует"
+    users |o--o{ documents : "загрузил"
+
+    users |o--o{ guardrail_events : "вызвал"
+    users |o--o{ restricted_chunk_reads : "прочитал"
+    documents |o--o{ restricted_chunk_reads : "источник"
+
+    users {
+        bigint id PK
+        uuid keycloak_id UK "sub из токена"
+        string name
+        string email
+        string password "null: вход через Keycloak"
+        timestamp last_login_at
+        timestamp created_at
+    }
+
+    roles {
+        bigint id PK
+        string name "роль realm Keycloak"
+        string guard_name
+        string access_level "допуск: public, internal, confidential"
+    }
+
+    model_has_roles {
+        bigint role_id PK,FK
+        string model_type PK
+        bigint model_id PK "users.id"
+    }
+
+    permissions {
+        bigint id PK
+        string name
+        string guard_name
+    }
+
+    model_has_permissions {
+        bigint permission_id PK,FK
+        string model_type PK
+        bigint model_id PK "users.id"
+    }
+
+    role_has_permissions {
+        bigint permission_id PK,FK
+        bigint role_id PK,FK
+    }
+
+    document_types {
+        bigint id PK
+        string name UK
+        boolean is_active
+    }
+
+    documents {
+        bigint id PK
+        char64 digest "SHA-256, имя файла в томе"
+        string original_name
+        string mime_type
+        bigint size
+        string sku
+        bigint document_type_id FK
+        string access_level "гриф"
+        string owner_department
+        date document_date
+        string status
+        string route "маршрут docling"
+        string docling_task_id
+        text error
+        float docling_processing_time
+        float indexing_time
+        float graph_time
+        int personal_data_count "скрыто ПДн"
+        bigint uploaded_by FK
+        timestamp created_at
+    }
+
+    guardrail_events {
+        bigint id PK
+        bigint user_id FK
+        string checkpoint "input_pii, input_injection, output_context, output_pii"
+        string action "Скрыто, Заблокировано"
+        string reason "без значений ПДн"
+        text question "после маскирования"
+        timestamp created_at
+    }
+
+    restricted_chunk_reads {
+        bigint id PK
+        bigint user_id FK
+        bigint document_id FK
+        uuid chunk_id "точка Qdrant и узел Neo4j"
+        string access_level
+        json page_numbers
+        text question "после маскирования"
+        timestamp created_at
+    }
