@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<!--
+  Форм-шаблон: акт сервисного обслуживания (приём и выдача техники из ремонта).
+  Структура снята с образца публичного акта сервисного центра; реквизиты, ПДн и брендинг исходного документа не перенесены.
+
+  Плейсхолдеры:
+    org_name            полное наименование организации
+    org_short_name      краткое наименование (в подписях)
+    org_inn, org_kpp    ИНН / КПП
+    org_legal_address   юридический адрес
+    org_branch_address  адрес структурного подразделения (сервисного центра)
+    act_number          номер акта
+    act_date            дата акта, ДД.ММ.ГГГГ
+    service_type        тип обслуживания: ГАРАНТИЙНЫЙ РЕМОНТ | ПЛАТНЫЙ РЕМОНТ | ДИАГНОСТИКА
+    customer_name       ФИО потребителя (представителя)          — ПДн
+    customer_address    адрес потребителя                         — ПДн
+    customer_phone      телефон потребителя                       — ПДн
+    customer_email      электронная почта потребителя             — ПДн
+    product_name        наименование товара
+    serial_number       серийный номер
+    complaint           неисправность со слов потребителя
+    received_date       дата приёма товара, ДД.ММ.ГГГГ
+    completed_date      дата окончания обслуживания, ДД.ММ.ГГГГ
+    result              результат выполненных работ
+    work_description    описание работ
+    service_days        срок нахождения на обслуживании, дней
+    rep_name            ФИО представителя организации             — ПДн
+-->
+<title>Акт сервисного обслуживания № {{act_number}}</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10pt; color: #000; }
+  .header { text-align: center; font-size: 8.5pt; line-height: 1.4; margin-bottom: 18pt; }
+  h1 { text-align: center; font-size: 12pt; margin: 0 0 14pt; line-height: 1.4; }
+  .service-type { margin-bottom: 4pt; }
+  .service-type b { text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
+  td { border: 1px solid #000; padding: 1pt 4pt; vertical-align: top; }
+  td:first-child { width: 38%; }
+  .small { font-size: 8.5pt; }
+  .block { margin: 10pt 0; }
+  .sign-row { margin-top: 12pt; }
+  .sign-row td { border: none; padding: 0; width: 50%; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  {{org_name}}<br>
+  ИНН/КПП {{org_inn}}/ {{org_kpp}}<br>
+  Юридический адрес: {{org_legal_address}}<br>
+  Адрес структурного подразделения: {{org_branch_address}}
+</div>
+
+<h1>АКТ СЕРВИСНОГО ОБСЛУЖИВАНИЯ<br>№ {{act_number}} от {{act_date}}г.</h1>
+
+<div class="service-type">Тип сервисного обслуживания: <b>{{service_type}}</b></div>
+
+<table>
+  <tr><td>ФИО потребителя (представителя)</td><td>{{customer_name}}</td></tr>
+  <tr><td>Адрес</td><td>{{customer_address}}</td></tr>
+  <tr><td>Телефон</td><td>{{customer_phone}}</td></tr>
+  <tr><td>Электронная почта</td><td>{{customer_email}}</td></tr>
+  <tr><td>Товар</td><td>{{product_name}}</td></tr>
+  <tr><td>Серийный номер</td><td>{{serial_number}}</td></tr>
+  <tr><td>Неисправность со слов потребителя</td><td>{{complaint}}</td></tr>
+  <tr><td>Дата приема товара</td><td>{{received_date}}</td></tr>
+  <tr><td>Дата окончания обслуживания</td><td>{{completed_date}}</td></tr>
+  <tr><td>Результат выполненных работ</td><td>{{result}}</td></tr>
+</table>
+
+<div class="block">Описание работ: <span class="small">{{work_description}}</span></div>
+
+<div class="block small">
+  Подписанием Акта покупатель подтверждает, что при получении товар им всесторонне осмотрен, проверена работоспособность,
+  претензий к внешнему виду, комплектации и состоянию не имеет.
+</div>
+
+<div class="block small">
+  Срок нахождения товара на гарантийном обслуживании: {{service_days}} дней.<br>
+  Гарантийный срок продлевается на время нахождения товара на сервисном обслуживании.
+</div>
+
+<div class="block small">Дата выдачи товара: "____" ______________ ________ г.</div>
+
+<div class="block small">ФИО представителя {{org_short_name}} &nbsp; {{rep_name}}</div>
+
+<table class="sign-row small">
+  <tr>
+    <td>Подпись представителя {{org_short_name}} ____________________</td>
+    <td>Подпись Заказчика ____________________</td>
+  </tr>
+</table>
+
+<div class="block small">М.П.</div>
+
+</body>
+</html>
