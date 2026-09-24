@@ -4,6 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Actions\AnswerQuestion;
 use App\Models\User;
+use App\Neuron\Nodes\GroundedContextNode;
 use App\Observability\Tracing;
 use Generator;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -37,11 +38,18 @@ class AskKnowledgeBaseTool extends Tool
         $depth = $tracing->depth();
         $span = $tracing->begin('mcp.tool search', ['enduser.id' => (string) $user->id, 'kb.clearance' => $clearance->value]);
 
+        // FR-9, ТЗ 6.1: TTFT — до начала генерации ответа; отказ без генерации сам и есть первый ответ, спан закрывается с ним
+        $firstToken = $tracing->start('mcp.ttft');
+
         try {
             $answering = $answerQuestion->handle($clearance, $validated['question'], $user);
             $progress = 0;
 
             foreach ($answering as $step) {
+                if ($step === GroundedContextNode::ANSWERING) {
+                    $firstToken->end();
+                }
+
                 yield Response::notification('notifications/progress', [
                     'progressToken' => $progressToken,
                     'progress' => ++$progress,
@@ -55,6 +63,7 @@ class AskKnowledgeBaseTool extends Tool
 
             throw $exception;
         } finally {
+            $firstToken->end();
             $tracing->unwindTo($depth + 1);
             $tracing->end($span);
         }

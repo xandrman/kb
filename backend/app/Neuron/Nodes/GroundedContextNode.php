@@ -21,6 +21,11 @@ class GroundedContextNode extends Node
     public const string REFUSAL = 'Нет данных в базе знаний.';
 
     /**
+     * Progress step right before the model starts the answer; the MCP tool ends its TTFT span on it (FR-9).
+     */
+    public const string ANSWERING = 'Формирую ответ…';
+
+    /**
      * Agent state key of the fragment texts the answer was built from.
      */
     public const string CONTEXT_STATE_KEY = 'context_fragments';
@@ -63,7 +68,7 @@ class GroundedContextNode extends Node
             return new StopEvent;
         }
 
-        yield new ProgressEvent('Формирую ответ…');
+        yield new ProgressEvent(self::ANSWERING);
 
         // Выходной guardrail сверяет с ними ответ: значения из фрагментов уже прошли маскирование при загрузке
         $state->set(self::CONTEXT_STATE_KEY, array_map(fn (Chunk $chunk): string => $chunk->getContent(), array_values($event->documents)));

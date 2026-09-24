@@ -46,6 +46,20 @@ resource "docker_container" "grafana" {
     content = file("${path.module}/grafana/datasources.yml")
   }
 
+  upload {
+    file    = "/etc/grafana/provisioning/dashboards/dashboards.yml"
+    content = file("${path.module}/grafana/dashboards.yml")
+  }
+
+  dynamic "upload" {
+    for_each = fileset("${path.module}/grafana/dashboards", "*.json")
+
+    content {
+      file    = "/etc/grafana/dashboards/${upload.value}"
+      content = file("${path.module}/grafana/dashboards/${upload.value}")
+    }
+  }
+
   volumes {
     container_path = "/var/lib/grafana"
     volume_name    = docker_volume.grafana_data.name

@@ -10,6 +10,9 @@ use App\Models\User;
 use App\Neuron\InjectionDetector;
 use App\Neuron\KnowledgeBaseRag;
 use App\Neuron\PersonalDataDetector;
+use App\Observability\NeuronTracingObserver;
+use App\Observability\Tracing;
+use ArrayObject;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -17,12 +20,18 @@ use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\HttpClient\GuzzleHttpClient;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\RAG\Embeddings\AbstractEmbeddingsProvider;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\GraphStore\GraphStoreInterface;
 use NeuronAI\RAG\PostProcessor\FixedThresholdPostProcessor;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
 use NeuronAI\Testing\FakeAIProvider;
+use OpenTelemetry\API\Trace\TracerProviderInterface;
+use OpenTelemetry\SDK\Trace\ImmutableSpan;
+use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
+use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
+use OpenTelemetry\SDK\Trace\TracerProvider;
 use Psr\Http\Message\RequestInterface;
 use Tests\Fakes\FakeGraphStore;
 use Tests\TestCase;
@@ -116,6 +125,33 @@ class AskKnowledgeBaseToolTest extends TestCase
         $this->llm->assertNothingSent();
     }
 
+    public function test_time_to_first_token_ends_when_the_model_starts_the_answer(): void
+    {
+        $spans = $this->recordSpans();
+        $this->fakeQdrantFinds('На экране видны полосы: измените частоту обновления экрана.');
+
+        McpServer::actingAs(User::factory()->create(), 'mcp')
+            ->tool(AskKnowledgeBaseTool::class, ['question' => 'Что делать, если на экране полосы?'])
+            ->assertOk();
+
+        $firstToken = $this->spanNamed($spans, 'mcp.ttft');
+        $this->assertSame($this->spanNamed($spans, 'mcp.tool search')->getSpanId(), $firstToken->getParentSpanId());
+        $this->assertLessThanOrEqual($this->spanNamed($spans, 'agent KnowledgeBaseRag', 'llm.inference')->getStartEpochNanos(), $firstToken->getEndEpochNanos());
+    }
+
+    public function test_a_refusal_without_the_model_is_itself_the_first_token(): void
+    {
+        $spans = $this->recordSpans();
+        $this->fakeQdrantFinds(null);
+
+        McpServer::actingAs(User::factory()->create(), 'mcp')
+            ->tool(AskKnowledgeBaseTool::class, ['question' => 'Как испечь пирог?'])
+            ->assertOk();
+
+        $this->assertLessThanOrEqual($this->spanNamed($spans, 'mcp.tool search')->getEndEpochNanos(), $this->spanNamed($spans, 'mcp.ttft')->getEndEpochNanos());
+        $this->assertGreaterThanOrEqual($this->spanNamed($spans, 'agent KnowledgeBaseRag')->getEndEpochNanos(), $this->spanNamed($spans, 'mcp.ttft')->getEndEpochNanos());
+    }
+
     public function test_a_question_is_required(): void
     {
         McpServer::actingAs(User::factory()->create(), 'mcp')
@@ -159,5 +195,46 @@ class AskKnowledgeBaseToolTest extends TestCase
         $this->app->bind(InjectionDetector::class, fn (): InjectionDetector => (new InjectionDetector)->setAiProvider(
             new FakeAIProvider(new AssistantMessage(json_encode(['category' => $category]))),
         ));
+    }
+
+    /**
+     * Spans go to memory instead of kb-alloy; tracing services built at boot are rebuilt around the new provider.
+     *
+     * @return ArrayObject<int, ImmutableSpan>
+     */
+    private function recordSpans(): ArrayObject
+    {
+        $spans = new ArrayObject;
+        $this->app->instance(TracerProviderInterface::class, new TracerProvider(new SimpleSpanProcessor(new InMemoryExporter($spans))));
+        $this->app->forgetInstance(Tracing::class);
+        $this->app->forgetInstance(NeuronTracingObserver::class);
+        EventBus::clear();
+        EventBus::setDefaultObserver(app(NeuronTracingObserver::class));
+
+        return $spans;
+    }
+
+    /**
+     * The span with the name; with $child — that span's child of the name $child.
+     *
+     * @param  ArrayObject<int, ImmutableSpan>  $spans
+     */
+    private function spanNamed(ArrayObject $spans, string $name, ?string $child = null): ImmutableSpan
+    {
+        foreach ($spans as $span) {
+            if ($span->getName() === $name) {
+                if ($child === null) {
+                    return $span;
+                }
+
+                foreach ($spans as $candidate) {
+                    if ($candidate->getName() === $child && $candidate->getParentSpanId() === $span->getSpanId()) {
+                        return $candidate;
+                    }
+                }
+            }
+        }
+
+        $this->fail("Спан {$name} не записан");
     }
 }
