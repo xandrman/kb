@@ -26,6 +26,11 @@ class GroundedContextNode extends Node
     public const string CONTEXT_STATE_KEY = 'context_fragments';
 
     /**
+     * Agent state key of where those fragments come from: chunk, document, access level, pages (SRS 6.4 audit log).
+     */
+    public const string SOURCES_STATE_KEY = 'context_sources';
+
+    /**
      * Markup of the context block; the output guardrail looks for it in answers (DetectContextLeak).
      */
     public const string CONTEXT_OPEN = '<CONTEXT>';
@@ -62,6 +67,12 @@ class GroundedContextNode extends Node
 
         // Выходной guardrail сверяет с ними ответ: значения из фрагментов уже прошли маскирование при загрузке
         $state->set(self::CONTEXT_STATE_KEY, array_map(fn (Chunk $chunk): string => $chunk->getContent(), array_values($event->documents)));
+        $state->set(self::SOURCES_STATE_KEY, array_map(fn (Chunk $chunk): array => [
+            'chunk_id' => (string) $chunk->getId(),
+            'document_id' => $chunk->metadata['document_id'] ?? null,
+            'access_level' => $chunk->metadata['access_level'] ?? null,
+            'page_numbers' => $chunk->metadata['page_numbers'] ?? null,
+        ], array_values($event->documents)));
 
         return new AIInferenceEvent(
             instructions: $this->baseInstructions."\n\n".self::CONTEXT_OPEN."\n".$this->context($event->documents).self::CONTEXT_CLOSE,

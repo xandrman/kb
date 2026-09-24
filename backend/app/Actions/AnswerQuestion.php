@@ -28,11 +28,12 @@ class AnswerQuestion
         private readonly DetectPromptInjection $detectPromptInjection,
         private readonly DetectContextLeak $detectContextLeak,
         private readonly RecordGuardrailEvent $recordGuardrailEvent,
+        private readonly RecordRestrictedChunkReads $recordRestrictedChunkReads,
         private readonly Tracing $tracing,
     ) {}
 
     /**
-     * Answer from the documents the clearance opens, or refuse when they hold no answer (FR-5, FR-7); $user — for the guardrail log.
+     * Answer from the documents the clearance opens, or refuse when they hold no answer (FR-5, FR-7); $user — for the guardrail and restricted access logs.
      *
      * Генератор: по ходу работы отдаёт описания шагов для показа пользователю, ответ — его возвращаемое значение.
      *
@@ -135,6 +136,12 @@ class AnswerQuestion
                 MaskPersonalData::summary($masking['types']),
                 $question,
             );
+        }
+
+        // ТЗ 6.4: аудит доступа к ограниченным документам — пишется, только когда ответ по ним действительно отдан.
+        // Модель тоже отказывает, если во фрагментах нет ответа: из документов тогда пользователь ничего не получил
+        if (trim($answer) !== GroundedContextNode::REFUSAL) {
+            $this->recordRestrictedChunkReads->handle($user, $state->get(GroundedContextNode::SOURCES_STATE_KEY, []), $question);
         }
 
         return $masking['text'];
