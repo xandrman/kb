@@ -123,7 +123,6 @@ workspace "Платформа корпоративных знаний" "C4-мо�
 
                 dmz = deploymentNode "kb-dmz" "Сегмент DMZ" "Docker network" "DMZ" {
                     nginx = containerInstance platform.nginx
-                    certbot = infrastructureNode "certbot" "Сертификаты TLS, только стенд" "Let's Encrypt"
                     hfCli = infrastructureNode "hf-cli" "Загрузка моделей, только стенд" "Hugging Face"
                 }
 

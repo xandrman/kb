@@ -17,3 +17,6 @@ override.tf.json
 
 # Тестовые документы
 testdata/
+
+# Сертификат и закрытый ключ TLS (ADR-0033)
+infra/tls/
