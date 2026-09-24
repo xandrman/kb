@@ -2,6 +2,7 @@
 
 namespace App\Neuron;
 
+use App\Observability\TraceHttpRequests;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\OpenAILike;
@@ -19,6 +20,7 @@ class GraphExtractor extends Agent
             key: '',
             model: config('services.llm.model'),
             parameters: ['temperature' => 0],
+            httpClient: TraceHttpRequests::neuronClient(),
         );
     }
 

@@ -8,6 +8,7 @@ use App\Neuron\Nodes\ProgressiveRetrievalNode;
 use App\Neuron\PostProcessor\DuplicateChunksPostProcessor;
 use App\Neuron\PostProcessor\RerankerPostProcessor;
 use App\Neuron\Retrieval\KnowledgeBaseRetrieval;
+use App\Observability\TraceHttpRequests;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\Providers\OpenAILike;
 use NeuronAI\RAG\Nodes\PostProcessNode;
@@ -34,6 +35,7 @@ class KnowledgeBaseRag extends RAG
             key: '',
             model: config('services.llm.model'),
             parameters: ['temperature' => 0.2],
+            httpClient: TraceHttpRequests::neuronClient(),
         );
     }
 

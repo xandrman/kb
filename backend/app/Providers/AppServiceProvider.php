@@ -10,6 +10,7 @@ use App\Http\Responses\KeycloakLogoutResponse;
 use App\Models\User;
 use App\Neuron\PostProcessor\RerankerPostProcessor;
 use App\Observability\NeuronTracingObserver;
+use App\Observability\TraceHttpRequests;
 use App\Observability\Tracing;
 use App\Services\LocalDocumentStorage;
 use App\Socialite\KeycloakProvider;
@@ -18,6 +19,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
@@ -63,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
             key: '',
             model: config('services.embedding.model'),
             dimensions: null,
+            httpClient: TraceHttpRequests::neuronClient(),
         ));
 
         // Конструктор обращается к Qdrant и создаёт коллекцию, если её нет, — поэтому только ленивое разрешение
@@ -71,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
             key: config('services.qdrant.key'),
             topK: config('services.qdrant.search_limit'),
             dimension: config('services.qdrant.dimension'),
+            httpClient: TraceHttpRequests::neuronClient(),
         ));
         $this->app->bind(VectorStoreInterface::class, QdrantVectorStore::class);
 
@@ -80,6 +84,7 @@ class AppServiceProvider extends ServiceProvider
             key: config('services.qdrant.key'),
             topK: 10,
             dimension: config('services.qdrant.dimension'),
+            httpClient: TraceHttpRequests::neuronClient(),
         ));
 
         $this->app->bind(RerankerPostProcessor::class, fn (): RerankerPostProcessor => new RerankerPostProcessor(
@@ -87,6 +92,7 @@ class AppServiceProvider extends ServiceProvider
             model: config('services.reranker.model'),
             topN: config('services.reranker.top_n'),
             host: config('services.reranker.url'),
+            httpClient: TraceHttpRequests::neuronClient(),
         ));
 
         $this->app->bind(GraphStoreInterface::class, fn (): Neo4jGraphStore => new Neo4jGraphStore(
@@ -126,6 +132,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // ADR-0022: вместо Inspector (SaaS), которого Neuron подключает по умолчанию, — спаны OpenTelemetry внутри периметра
         EventBus::setDefaultObserver($this->app->make(NeuronTracingObserver::class));
+
+        // FR-9: запросы через Http (docling, чтение точек Qdrant) тоже несут traceparent и дают клиентский спан
+        Http::globalMiddleware($this->app->make(TraceHttpRequests::class));
 
         Event::listen(SocialiteWasCalled::class, function (SocialiteWasCalled $event): void {
             $event->extendSocialite('keycloak', KeycloakProvider::class);
