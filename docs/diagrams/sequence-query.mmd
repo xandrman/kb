@@ -1,0 +1,115 @@
+---
+title: Путь вопроса — от сотрудника до ответа
+---
+sequenceDiagram
+    autonumber
+    actor U as Сотрудник
+    participant Chat as Система диалогов
+    participant KC as Keycloak
+
+    box MCP-сервер (kb-app)
+        participant EP as MCP-эндпоинт
+        participant Auth as Аутентификация
+        participant Tool as Инструмент search
+        participant Orch as Оркестратор ответа
+        participant IG as Входные guardrails
+        participant Agent as RAG-агент
+        participant Ret as Гибридный поиск
+        participant Sel as Отбор фрагментов
+        participant Gen as Генерация ответа
+        participant OG as Выходные guardrails
+        participant J as Журналы
+    end
+
+    box Data Plane
+        participant LLM as Генеративная LLM
+        participant Emb as Эмбеддинги
+        participant Q as Qdrant
+        participant N as Neo4j
+        participant RR as Реранкер
+        participant PG as PostgreSQL
+    end
+
+    U->>Chat: Вопрос
+    Chat->>LLM: Вопрос, инструмент search
+    LLM-->>Chat: Вызов search
+
+    opt Нет MCP-токена
+        Chat->>KC: Authorization code, PKCE
+        KC-->>Chat: Access token
+    end
+
+    Chat->>EP: tools/call search, Bearer
+    EP->>Auth: Проверить токен
+    Note over Auth: Подпись по JWKS, sid не отозван (Redis)
+    break Токен недействителен
+        EP-->>Chat: 401, WWW-Authenticate
+    end
+    Auth->>PG: Синхронизировать пользователя
+    Auth-->>EP: Пользователь, допуск
+    EP->>Tool: Вызвать
+    Tool->>Orch: Вопрос, допуск
+
+    Orch->>IG: input_pii
+    IG->>LLM: Найти ПДн
+    IG-->>Orch: Вопрос с метками
+    opt Найдены ПДн
+        Orch->>J: Скрыто
+    end
+
+    Orch->>IG: input_injection
+    IG->>LLM: Классифицировать
+    break Атака
+        Orch->>J: Заблокировано
+        EP-->>Chat: Отказ
+    end
+
+    Orch->>Agent: Запустить
+    Agent-)Chat: Прогресс «Ищу в документах…»
+    Agent->>Ret: Найти фрагменты
+    Ret->>Emb: Векторизовать вопрос
+    Ret->>Q: Поиск с фильтром грифа
+    Ret->>N: Связанные чанки с допуском
+    Ret->>Q: Чанки по id с фильтром грифа
+    Ret->>PG: Метаданные документов
+    Ret-->>Agent: Фрагменты
+
+    Agent-)Chat: Прогресс «Проверяю фрагменты…»
+    Agent->>Sel: Отобрать
+    Sel->>RR: Оценить фрагменты
+    Sel-->>Agent: Фрагменты выше порога
+
+    Agent->>Gen: Сформировать ответ
+    alt Фрагментов нет
+        Gen-->>Agent: «Нет данных в базе знаний»
+    else Фрагменты есть
+        Agent-)Chat: Прогресс «Формирую ответ…»
+        Gen->>LLM: Промпт, фрагменты
+        LLM-->>Gen: Ответ
+        Gen-->>Agent: Ответ, источники
+    end
+    Agent-->>Orch: Ответ, источники
+
+    Orch->>OG: output_context
+    break Утечка контекста
+        Orch->>J: Заблокировано
+        EP-->>Chat: Отказ
+    end
+    Orch->>OG: output_pii
+    opt Найдены ПДн
+        Orch->>J: Скрыто
+    end
+    opt Ответ по документам
+        Orch->>J: Аудит ограниченных чанков
+    end
+    J->>PG: Записать события
+
+    Orch-->>Tool: Ответ
+    Tool-->>EP: Ответ
+    EP-->>Chat: Результат search
+
+    Chat->>LLM: Результат инструмента
+    LLM-->>Chat: Сообщение, поток токенов
+    Chat-->>U: Ответ со ссылками
+
+    Note over Agent,Chat: Прогресс идёт через эндпоинт как notifications/progress (SSE)
