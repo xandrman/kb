@@ -87,19 +87,21 @@ class MergeEntitySynonyms
      */
     private function indexNames(array $entities): array
     {
-        $vectors = [];
         $points = [];
 
         foreach ($entities as $key => $entity) {
-            // По одному имени: пакет из сотен коротких входов уронил kb-vllm-embedding (CUDA illegal memory access)
-            $vectors[$key] = $this->embeddings->embedText($entity['name']);
-
             $point = new NameVector($entity['name']);
             $point->sourceType = self::SOURCE_TYPE;
             $point->sourceName = $key;
-            $point->embedding = $vectors[$key];
             $point->metadata = ['type' => $entity['type']];
             $points[] = $point;
+        }
+
+        $points = $this->embeddings->embedDocuments($points);
+
+        $vectors = [];
+        foreach ($points as $point) {
+            $vectors[$point->getSourceName()] = $point->getEmbedding();
         }
 
         $this->entityVectors->deleteBy(self::SOURCE_TYPE);
