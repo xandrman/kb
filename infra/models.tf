@@ -162,6 +162,9 @@ resource "docker_container" "vllm_embedding" {
     "--tensor-parallel-size", "1",
     "--gpu-memory-utilization", "0.9",
     "--max-num-seqs", "16",
+    # Без CUDA-графов: прогрев размечает рабочий буфер MoE на ~32 токена (1 MB), и батч крупнее роняет движок —
+    # в 0.29 буфер растёт под захваченными графами (illegal memory access), в 0.30 заблокирован ("Workspace is locked")
+    "--enforce-eager",
     "--runner", "pooling",
     "--convert", "embed",
     "--trust-remote-code",
