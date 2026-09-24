@@ -4,6 +4,7 @@ namespace App\Neuron\Retrieval;
 
 use App\Enums\AccessLevel;
 use App\Models\Document;
+use App\Observability\Tracing;
 use App\Services\KnowledgeGraph;
 use Illuminate\Support\Facades\Http;
 use NeuronAI\Chat\Messages\Message;
@@ -11,6 +12,7 @@ use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\Embeddings\EmbeddingsProviderInterface;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\RAG\VectorStore\QdrantVectorStore;
+use OpenTelemetry\API\Trace\SpanInterface;
 
 /**
  * Hybrid knowledge base retrieval for one user: vector search plus graph expansion, only what their clearance opens (FR-5, FR-7).
@@ -27,6 +29,7 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
         private readonly QdrantVectorStore $chunks,
         private readonly KnowledgeGraph $knowledgeGraph,
         private readonly AccessLevel $clearance,
+        private readonly Tracing $tracing,
     ) {}
 
     /**
@@ -47,6 +50,19 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      * @return list<Chunk>
      */
     public function vectorSearch(string $question): array
+    {
+        return $this->tracing->span('rag.vector_search', function (SpanInterface $span) use ($question): array {
+            $found = $this->searchVectors($question);
+            $span->setAttribute('kb.chunks.found', count($found));
+
+            return $found;
+        }, ['kb.clearance' => $this->clearance->value]);
+    }
+
+    /**
+     * @return list<Chunk>
+     */
+    private function searchVectors(string $question): array
     {
         $embedding = $this->embeddings->embedText('Instruct: '.self::QUERY_INSTRUCTION."\nQuery: {$question}");
 
@@ -85,6 +101,20 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      * @return list<Chunk>
      */
     public function graphExpansion(array $seeds): array
+    {
+        return $this->tracing->span('rag.graph_expansion', function (SpanInterface $span) use ($seeds): array {
+            $expansion = $this->expandThroughGraph($seeds);
+            $span->setAttribute('kb.chunks.added', count($expansion));
+
+            return $expansion;
+        }, ['kb.chunks.seeds' => count($seeds)]);
+    }
+
+    /**
+     * @param  list<Chunk>  $seeds
+     * @return list<Chunk>
+     */
+    private function expandThroughGraph(array $seeds): array
     {
         $related = $this->knowledgeGraph->relatedChunks(
             array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $seeds),

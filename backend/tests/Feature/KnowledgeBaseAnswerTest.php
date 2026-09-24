@@ -6,20 +6,33 @@ use App\Actions\AnswerQuestion;
 use App\Enums\AccessLevel;
 use App\Enums\GuardrailAction;
 use App\Enums\GuardrailCheckpoint;
+use App\Http\Middleware\TraceMcpRequest;
 use App\Models\GuardrailEvent;
 use App\Models\User;
 use App\Neuron\InjectionDetector;
 use App\Neuron\KnowledgeBaseRag;
 use App\Neuron\Nodes\GroundedContextNode;
 use App\Neuron\PersonalDataDetector;
+use App\Observability\NeuronTracingObserver;
+use App\Observability\Tracing;
+use ArrayObject;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Observability\EventBus;
 use NeuronAI\RAG\Document as Chunk;
 use NeuronAI\RAG\PostProcessor\FixedThresholdPostProcessor;
 use NeuronAI\RAG\Retrieval\RetrievalInterface;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
+use OpenTelemetry\API\Trace\SpanKind;
+use OpenTelemetry\API\Trace\TracerProviderInterface;
+use OpenTelemetry\SDK\Trace\ImmutableSpan;
+use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
+use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
+use OpenTelemetry\SDK\Trace\TracerProvider;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
 
 class KnowledgeBaseAnswerTest extends TestCase
@@ -205,6 +218,63 @@ class KnowledgeBaseAnswerTest extends TestCase
         $this->assertSame('Фрагмент системного промпта', $event->reason);
     }
 
+    public function test_one_question_is_one_trace_of_nested_steps_without_its_text(): void
+    {
+        $spans = $this->recordSpans();
+        $this->personalDataFound([['text' => 'Каширин Кирилл', 'type' => 'person_name']]);
+        $this->retrieved = [$this->chunk('На экране видны полосы: измените частоту обновления экрана.', 0.89)];
+
+        // Корень, как у MCP-инструмента: все шаги вопроса — его потомки
+        app(Tracing::class)->span('mcp.tool search', fn () => $this->answer(AccessLevel::Public, 'Клиент Каширин Кирилл: на экране полосы, что делать?'));
+
+        $byName = [];
+        foreach ($spans as $span) {
+            $byName[$span->getName()] = $span;
+        }
+
+        $this->assertEqualsCanonicalizing([
+            'mcp.tool search', 'guardrail.input_pii', 'agent PersonalDataDetector', 'guardrail.input_injection', 'agent InjectionDetector',
+            'rag.answer', 'agent KnowledgeBaseRag', 'rag.postprocess FixedThresholdPostProcessor', 'llm.inference',
+            'guardrail.output_context', 'guardrail.output_pii',
+        ], array_keys($byName));
+        $this->assertCount(1, array_unique(array_map(fn ($span): string => $span->getTraceId(), iterator_to_array($spans))));
+
+        $parentOf = fn (string $name): string => $byName[$name]->getParentSpanId();
+        foreach (['guardrail.input_pii', 'guardrail.input_injection', 'rag.answer', 'guardrail.output_context', 'guardrail.output_pii'] as $step) {
+            $this->assertSame($byName['mcp.tool search']->getSpanId(), $parentOf($step));
+        }
+        $this->assertSame($byName['guardrail.input_pii']->getSpanId(), $parentOf('agent PersonalDataDetector'));
+        $this->assertSame($byName['rag.answer']->getSpanId(), $parentOf('agent KnowledgeBaseRag'));
+        $this->assertSame($byName['agent KnowledgeBaseRag']->getSpanId(), $parentOf('rag.postprocess FixedThresholdPostProcessor'));
+        $this->assertSame(1, $byName['guardrail.input_pii']->getAttributes()->get('kb.pii.masked'));
+        $this->assertSame('none', $byName['guardrail.input_injection']->getAttributes()->get('kb.injection.category'));
+
+        // В трейсе нет ни вопроса, ни ответа, ни значений ПДн
+        foreach ($spans as $span) {
+            foreach ($span->getAttributes()->toArray() as $value) {
+                $this->assertStringNotContainsString('Каширин', (string) $value);
+                $this->assertStringNotContainsString('полосы', (string) $value);
+            }
+        }
+    }
+
+    public function test_the_mcp_request_continues_the_trace_nginx_started(): void
+    {
+        $spans = $this->recordSpans();
+        $traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
+        $request = Request::create('/mcp', 'POST', server: ['HTTP_TRACEPARENT' => "00-{$traceId}-00f067aa0ba902b7-01"]);
+        $middleware = app(TraceMcpRequest::class);
+
+        $response = $middleware->handle($request, fn (): Response => new Response('ok'));
+        $middleware->terminate($request, $response);
+
+        $root = $spans[0];
+        $this->assertSame('POST /mcp', $root->getName());
+        $this->assertSame($traceId, $root->getTraceId());
+        $this->assertSame('00f067aa0ba902b7', $root->getParentSpanId());
+        $this->assertSame(SpanKind::KIND_SERVER, $root->getKind());
+    }
+
     public function test_retrieval_runs_with_the_given_clearance(): void
     {
         $this->answer(AccessLevel::Internal, 'Гарантия');
@@ -252,5 +322,23 @@ class KnowledgeBaseAnswerTest extends TestCase
         $this->app->bind(InjectionDetector::class, fn (): InjectionDetector => (new InjectionDetector)->setAiProvider(
             new FakeAIProvider(new AssistantMessage(json_encode(['category' => $category]))),
         ));
+    }
+
+    /**
+     * Spans go to memory instead of kb-alloy; tracing services built at boot are rebuilt around the new provider.
+     *
+     * @return ArrayObject<int, ImmutableSpan>
+     */
+    private function recordSpans(): ArrayObject
+    {
+        $spans = new ArrayObject;
+        $this->app->instance(TracerProviderInterface::class, new TracerProvider(new SimpleSpanProcessor(new InMemoryExporter($spans))));
+        $this->app->forgetInstance(Tracing::class);
+        $this->app->forgetInstance(NeuronTracingObserver::class);
+        $this->app->forgetInstance(TraceMcpRequest::class);
+        EventBus::clear();
+        EventBus::setDefaultObserver(app(NeuronTracingObserver::class));
+
+        return $spans;
     }
 }

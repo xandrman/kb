@@ -79,8 +79,8 @@ resource "docker_container" "app" {
     "SESSION_DRIVER=redis",
     "DOCUMENTS_ROOT=/data/documents",
     "OTEL_SERVICE_NAME=kb-app",
-    "OTEL_EXPORTER_OTLP_ENDPOINT=http://kb-alloy:4317",
-    "OTEL_EXPORTER_OTLP_INSECURE=true",
+    # FR-9: спаны запроса по OTLP/HTTP в Alloy (ADR-0015); PHP-SDK шлёт без gRPC-расширения
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4318/v1/traces",
     # Issuer совпадает с --hostname Keycloak: и браузер, и kb-app ходят по domain_name:8002 (алиас kb-nginx в kb-internal)
     "KEYCLOAK_BASE_URL=https://${var.domain_name}:8002",
     "KEYCLOAK_REALM=kb",

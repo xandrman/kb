@@ -32,6 +32,12 @@ return [
         'chunk_max_tokens' => (int) env('DOCLING_CHUNK_MAX_TOKENS', 512),
     ],
 
+    // FR-9: трейсы приложения в kb-alloy по OTLP/HTTP; без адреса трассировка выключена
+    'otel' => [
+        'traces_endpoint' => env('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT'),
+        'service_name' => env('OTEL_SERVICE_NAME', 'kb-app'),
+    ],
+
     // ADR-0009: генеративная модель kb-vllm-generate — извлечение графа (FR-4)
     'llm' => [
         'url' => env('LLM_URL'),

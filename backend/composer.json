@@ -16,6 +16,8 @@
         "laravel/tinker": "^3.0",
         "laudis/neo4j-php-client": "^3.4",
         "neuron-core/neuron-ai": "^3.17",
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/sdk": "^1.15",
         "socialiteproviders/keycloak": "^5.3",
         "spatie/laravel-permission": "^8.3"
     },
