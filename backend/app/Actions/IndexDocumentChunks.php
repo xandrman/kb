@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Contracts\DocumentStorage;
+use App\Enums\DoclingRoute;
 use App\Enums\DocumentStatus;
 use App\Jobs\ProcessChunk;
 use App\Models\Document;
@@ -11,6 +12,7 @@ use App\Services\DoclingClient;
 use App\Services\KnowledgeGraph;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use NeuronAI\RAG\VectorStore\VectorStoreInterface;
 use Ramsey\Uuid\Uuid;
 use RuntimeException;
@@ -34,6 +36,7 @@ class IndexDocumentChunks
         private readonly VectorStoreInterface $vectorStore,
         private readonly KnowledgeGraph $knowledgeGraph,
         private readonly ChunkLanguage $language,
+        private readonly SubmitDocumentExtraction $submitExtraction,
     ) {}
 
     /**
@@ -44,6 +47,17 @@ class IndexDocumentChunks
         $startedAt = microtime(true);
 
         $allChunks = $this->docling->chunk($this->storage->getExtracted($document->digest), $document->digest.'.json');
+
+        /** @var DoclingRoute|null $route */
+        $route = $document->route;
+
+        if ($allChunks === [] && $route === DoclingRoute::Standard) {
+            // Текстовый слой есть, но docling разметил страницы картинками (слайды, чертежи) и текст выбросил — его распознаёт VLM
+            Log::warning('docling не выделил чанков на born-digital маршруте, документ переотправлен на VLM', ['document_id' => $document->id]);
+            $this->submitExtraction->handle($document, DoclingRoute::Vlm);
+
+            return;
+        }
 
         if ($allChunks === []) {
             throw new RuntimeException('docling не выделил в документе ни одного чанка.');
