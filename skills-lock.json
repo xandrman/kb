@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "skills": {
+    "PHP Composer and Autoloading": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/languages/php/skills/php-composer-autoloading/SKILL.md",
+      "computedHash": "30d50a1bab47a41f232016fb2e7c27fd9106a17210e753450b026422e7917081"
+    },
+    "alloy": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-core/alloy/SKILL.md",
+      "computedHash": "5bf0f25414e5ffa56350c73ad9676c98912e1c34ff6f075e326d6bce3d793ee8"
+    },
+    "aws-ami-builder": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/packer/skills/aws-ami-builder/SKILL.md",
+      "computedHash": "8f815fc6bda6622cb9444f56adb7c618265dec6227bf551b64db8f61510830f5"
+    },
+    "azure-image-builder": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/packer/skills/azure-image-builder/SKILL.md",
+      "computedHash": "b184520ab085e6a558363e95a10fef74e00a052e0eb99f9befdd17aafe062010"
+    },
+    "azure-verified-modules": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/azure-verified-modules/SKILL.md",
+      "computedHash": "3b36357f6affdfb4397cdeaa57d1e94f1dd4e148c110fe360b8f17777e42ca8f"
+    },
+    "certbot": {
+      "source": "g1joshi/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security/certbot/SKILL.md",
+      "computedHash": "1d2ed5e198a828bbd60d9a8c50c14c6aeb505fd0df0b870f5a2fe6bc6d7bbdcb"
+    },
+    "commit-message-storyteller": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/commit-message-storyteller/SKILL.md",
+      "computedHash": "ca0d63ccdfeb488294209fd40b8ce122e809931a6d5c22a105627624e4e2dece"
+    },
+    "create-agentsmd": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/create-agentsmd/SKILL.md",
+      "computedHash": "bfbdbb76b17cca970d1d624e36ce72b6847860d740581c8865da796c1fef8552"
+    },
+    "deploying-monitoring-stacks": {
+      "source": "jeremylongshore/tons-of-skills-marketplace",
+      "sourceType": "github",
+      "skillPath": "skills/.curated/deploying-monitoring-stacks/SKILL.md",
+      "computedHash": "1bdd3e71b5cbf5c7a6703468097ef7620c7b64a2c76babeac44b31574a2bbf4b"
+    },
+    "filament-pro": {
+      "source": "marcelorodrigo/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/filament-pro/SKILL.md",
+      "computedHash": "8e7763e017b3cfbdbf16bd968cfdb62e138a7e89f9494766e1d91c4e339fcd5f"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf"
+    },
+    "git-flow-branch-creator": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/git-flow-branch-creator/SKILL.md",
+      "computedHash": "8add10a7fce31ef99856d36bffeb90f1f1130f5afd88b111417c257f1e5d39bd"
+    },
+    "gitignore-generator": {
+      "source": "jeremylongshore/tons-of-skills-marketplace",
+      "sourceType": "github",
+      "skillPath": "skills/01-devops-basics/gitignore-generator/SKILL.md",
+      "computedHash": "408d0fc277dc710d24d06466d786af83d5b07cfeb39a236003f3bae622317638"
+    },
+    "grafana-oss": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-core/grafana-oss/SKILL.md",
+      "computedHash": "6638b23a0e6ee2cb2c35fa5c3646b78c183ca018209f9b37efeb5b7e6a71e8af"
+    },
+    "keycloak-administration": {
+      "source": "dauquangthanh/hanoi-rainbow",
+      "sourceType": "github",
+      "skillPath": "skills/keycloak-administration/SKILL.md",
+      "computedHash": "f2d09b4f4fd0ced095c82713bdab711257577291a2502a29143b3c3dd2b10cfa"
+    },
+    "laravel": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "laravel/SKILL.md",
+      "computedHash": "d86bd752cb0495dc126cab91931bceee934f6c0cb9a7f4a9dd09cf549045fc58"
+    },
+    "librechat-docs": {
+      "source": "librechat-ai/librechat.ai",
+      "sourceType": "github",
+      "skillPath": "public/.well-known/agent-skills/librechat-docs/SKILL.md",
+      "computedHash": "fe8f1a04a653419e41dee01f8ba047654104a3eeaaf327a7abb993ea0499ad62"
+    },
+    "loki": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-lgtm/loki/SKILL.md",
+      "computedHash": "0c83822f226a02921e12cecb35f1270d89744a782895690d4a4e8904588fb07c"
+    },
+    "neo4j-cli-tools-skill": {
+      "source": "neo4j-contrib/neo4j-skills",
+      "sourceType": "github",
+      "skillPath": "neo4j-cli-tools-skill/SKILL.md",
+      "computedHash": "ae4fe6f255414071afaa87e09b36e2824a99bc5ff0f6f1b473a6a18be399621f"
+    },
+    "neo4j-mcp-skill": {
+      "source": "neo4j-contrib/neo4j-skills",
+      "sourceType": "github",
+      "skillPath": "neo4j-mcp-skill/SKILL.md",
+      "computedHash": "77b385d6682e695334c752038c05050f0c3ddd3ed9d64be9d4a6e58fdbd274b7"
+    },
+    "new-terraform-provider": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/new-terraform-provider/SKILL.md",
+      "computedHash": "9fe1b7b4b0f5de81ac8b8017c9cd8d8bc5104b55f5b15dfd5e3da3bd0cb5c03c"
+    },
+    "nginx-configuration": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/nginx-configuration/SKILL.md",
+      "computedHash": "30535fb54fb19ddcbad3697da291fbd22ea60f0c245d55be41ae9043f68bfd4a"
+    },
+    "prometheus-monitoring": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/prometheus-monitoring/SKILL.md",
+      "computedHash": "a3232fb8663e7ea0f140af73bd760c8116053cfdf886d4ba63b3cad25d191c42"
+    },
+    "provider-actions": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-actions/SKILL.md",
+      "computedHash": "8acc8dd1743611131f08986b5f09110ee7b7734b9236d629a63409c9b804888a"
+    },
+    "provider-configuration": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-configuration/SKILL.md",
+      "computedHash": "f995b0ff603295d6fb417d0cbaa9bc40d9a6bd1dc32e72bc048a9b0384110cf2"
+    },
+    "provider-docs": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-docs/SKILL.md",
+      "computedHash": "c1b792e16ac77d2060cb7d67111a518038de1cf9e8d0a29c552b64668b71f6e7"
+    },
+    "provider-ephemeral-resources": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-ephemeral-resources/SKILL.md",
+      "computedHash": "ed2acc4a339ada5ee6f948b74857e8661c7422528d58292e616e68057bdc112c"
+    },
+    "provider-framework-migration": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-framework-migration/SKILL.md",
+      "computedHash": "863a96094df54e899888f317b24b7c093e19e07e84219b470858a798bdf96eed"
+    },
+    "provider-resources": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-resources/SKILL.md",
+      "computedHash": "328e011238ea6943c010ce8566129ff073e2de288a2c255528bd4a518bde64b3"
+    },
+    "provider-test-patterns": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/provider-test-patterns/SKILL.md",
+      "computedHash": "1f3440fa61b8a7f4e4b1efe82e74fa5094b833734de06bc2ada71ed6c6b43a78"
+    },
+    "push-to-registry": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/packer/skills/push-to-registry/SKILL.md",
+      "computedHash": "da6295b1111e9b4cac232e3fe5bffbb5bc28682febb871e90f0f326eb892322d"
+    },
+    "qdrant-advisor": {
+      "source": "qdrant/skills",
+      "sourceType": "github",
+      "skillPath": "meta/qdrant-advisor/SKILL.md",
+      "computedHash": "847fd40916d767cde7cf266a4213d6645b125e6103daea3a313d99075ec209f0"
+    },
+    "qdrant-deployment-options": {
+      "source": "qdrant/skills",
+      "sourceType": "github",
+      "skillPath": "skills/qdrant-deployment-options/SKILL.md",
+      "computedHash": "9248f190e22910b3264db056a573e0b2c1098d070b6c3eff7926e5e129787d29"
+    },
+    "refactor-module": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/refactor-module/SKILL.md",
+      "computedHash": "08139a8310403095fafbe92ee1a0ceee6736d179fd235fb6ef1c434925b8cb0b"
+    },
+    "run-acceptance-tests": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/run-acceptance-tests/SKILL.md",
+      "computedHash": "c8f2023c6a357b2e6b25d82c321c11d600a5cb5c355a751c83820fd093167bc9"
+    },
+    "socialite-development": {
+      "source": "laravel/socialite",
+      "sourceType": "github",
+      "skillPath": "resources/boost/skills/socialite-development/SKILL.md",
+      "computedHash": "a87739bd8e6182c174be68c07c7be4ff94705aa6b4b575cff61a496bc87d65d9"
+    },
+    "tempo": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-lgtm/tempo/SKILL.md",
+      "computedHash": "aa4bff51512423cb70f7020d589d56cfc3748fd8650525b1130f66ac794e81a5"
+    },
+    "terraform-policy": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/terraform-policy/SKILL.md",
+      "computedHash": "3117d5c3efb29d364188391f194304953f71e0d6cf024b1df072121efcb9253d"
+    },
+    "terraform-search-import": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/terraform-search-import/SKILL.md",
+      "computedHash": "4957a6b44f879a318929303d282899790d275ec4e15b33b2004b699a0dac91ce"
+    },
+    "terraform-stacks": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/terraform-stacks/SKILL.md",
+      "computedHash": "c27aad34a162149661133d4db77f042c08c22b8ef93c95a8f3c0941589898b7e"
+    },
+    "terraform-style-guide": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/terraform-style-guide/SKILL.md",
+      "computedHash": "3b914c5ae01a7101d45b5222fbc38e0be6eb7412deba5f54d471905f22af70c6"
+    },
+    "terraform-test": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/terraform/skills/terraform-test/SKILL.md",
+      "computedHash": "2d69da79a8e714dbdfee4c9a6b323cf33cef89e6b6dcee154d6b3009814c7240"
+    },
+    "vllm-deploy-docker": {
+      "source": "vllm-project/vllm-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/vllm-skills/skills/vllm-deploy-docker/SKILL.md",
+      "computedHash": "6d59cfedeb3c8b861bb51a11cb56c417474fb75f6bc97fe2366a943af60aaf57"
+    },
+    "windows-builder": {
+      "source": "hashicorp/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/packer/skills/windows-builder/SKILL.md",
+      "computedHash": "b6e37e9e8c544f8b11149729408092c908e2382811a8d1610baef4bb69445524"
+    }
+  }
+}

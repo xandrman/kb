@@ -1,0 +1,147 @@
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "kb-tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+loki.source.file "nginx_logs" {
+  targets = [
+    { __path__ = "/var/log/nginx/access.log", job = "nginx", service_name = "kb-nginx" },
+    { __path__ = "/var/log/nginx/error.log",  job = "nginx", service_name = "kb-nginx" },
+  ]
+  forward_to = [loki.write.loki.receiver]
+}
+
+// Логи контейнеров: драйвер syslog Docker по UDP (ADR-0032). Слушаем только адрес в kb-logs:
+// в kb-internal порта нет, иначе любой контейнер сети мог бы писать от имени другого
+loki.source.syslog "containers" {
+  listener {
+    address                = "${log_collector_address}:1514"
+    protocol               = "udp"
+    use_incoming_timestamp = true
+    max_message_length     = 65536
+  }
+  forward_to    = [loki.relabel.dockerd.receiver]
+  relabel_rules = loki.relabel.containers.rules
+}
+
+loki.relabel "containers" {
+  forward_to = []
+
+  // Адрес отправителя — для проверки ниже: keep здесь сбросил бы только метки, а запись пропустил
+  rule {
+    source_labels = ["__syslog_connection_ip_address"]
+    target_label  = "sender"
+  }
+
+  rule {
+    source_labels = ["__syslog_message_app_name"]
+    target_label  = "service_name"
+  }
+
+  // Docker шлёт stdout с уровнем info, stderr — с уровнем err
+  rule {
+    source_labels = ["__syslog_message_severity"]
+    regex         = "informational"
+    replacement   = "stdout"
+    target_label  = "stream"
+  }
+
+  rule {
+    source_labels = ["__syslog_message_severity"]
+    regex         = "error"
+    replacement   = "stderr"
+    target_label  = "stream"
+  }
+}
+
+// Вторая линия после изоляции сети: записи только от dockerd, то есть с адреса шлюза kb-logs
+loki.relabel "dockerd" {
+  forward_to = [loki.process.containers.receiver]
+
+  rule {
+    source_labels = ["sender"]
+    regex         = "${log_gateway_regex}"
+    action        = "keep"
+  }
+
+  rule {
+    regex  = "sender"
+    action = "labeldrop"
+  }
+}
+
+loki.process "containers" {
+  // docling раскрашивает уровень ANSI-кодами
+  stage.decolorize {}
+
+  // Опросы Prometheus и проверки живости — каждые 15 с у каждого vLLM, смысла в логе не несут
+  stage.drop {
+    expression = "\"GET /(metrics|health) HTTP"
+  }
+
+  // Docker шлёт каждую строку отдельно: трассировку стека склеиваем с записью, к которой она относится.
+  // Python: запись начинается с уровня, у vLLM перед ним префикс процесса — он есть и у строк трассировки
+  stage.match {
+    selector = "{service_name=~\"kb-vllm-.+|kb-docling.*\"}"
+
+    stage.multiline {
+      firstline = "^(\\([\\w ]+pid=\\d+\\) )?(DEBUG|INFO|WARNING|ERROR|CRITICAL)[\\s:]"
+    }
+  }
+
+  // PHP: продолжение записи Laravel — строки [stacktrace], #N и закрывающая "}; остальное — новая запись
+  stage.match {
+    selector = "{service_name=~\"kb-app|kb-worker|kb-graph-worker-.+\"}"
+
+    stage.multiline {
+      firstline = "^([^#\"\\[]|\\[\\d)"
+    }
+  }
+
+  // trace_id — в структурированные метаданные, не в метку: у каждого запроса он свой.
+  // Laravel пишет его в JSON extra ("trace_id":"…"), остальные — как trace_id=…
+  stage.regex {
+    expression = "trace_id\"?[=:]\"?(?P<trace_id>[0-9a-f]{32})"
+  }
+
+  stage.structured_metadata {
+    values = { trace_id = "" }
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// Свои логи Alloy отправить себе по syslog не может, поэтому пишет их в Loki напрямую (ADR-0032)
+logging {
+  write_to = [loki.process.alloy.receiver]
+}
+
+loki.process "alloy" {
+  stage.static_labels {
+    values = { service_name = "kb-alloy" }
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://kb-loki:3100/loki/api/v1/push"
+  }
+}

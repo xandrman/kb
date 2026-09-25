@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+.git
+.idea
+.phpunit.cache
+compose.yaml
+node_modules
+vendor
+tests
+database/*.sqlite*
+public/hot
+# Сгенерированное: в образ попадает только из стейджей frontend и filament:assets,
+# иначе артефакты с машины разработчика маскируют пропуски в сборке
+public/build
+public/css/filament
+public/js/filament
+public/fonts/filament
+public/fonts-manifest.dev.json
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing
+bootstrap/cache/*.php
