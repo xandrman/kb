@@ -11,8 +11,10 @@ use App\Models\Document;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -41,6 +43,7 @@ class DocumentExtractionTest extends TestCase
     public function test_a_pdf_is_sent_to_docling_by_its_text_layer_and_polling_starts(): void
     {
         Http::fake(['docling.test/v1/convert/file/async' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'pending'])]);
+        $this->fakeTextLayer('Руководство пользователя источника бесперебойного питания', 'Technical specifications of the device');
         $document = $this->storedDocument('%PDF-1.4 manual', 'application/pdf');
 
         app()->call([new ProcessDocument($document), 'handle']);
@@ -76,6 +79,59 @@ class DocumentExtractionTest extends TestCase
         });
 
         $this->assertSame(DoclingRoute::Vlm, $document->refresh()->route);
+    }
+
+    /**
+     * @return array<string, array{list<string>}>
+     */
+    public static function pdfsFailingTheTextLayerGate(): array
+    {
+        $text = 'Руководство пользователя источника бесперебойного питания';
+
+        return [
+            'scan without a text layer' => [['', '', '']],
+            'font without ToUnicode' => [['Ðóêîâîäñòâî ïîëüçîâàòåëÿ èñòî÷íèêà áåñïåðåáîéíîãî ïèòàíèÿ']],
+            'text on fewer than half of the pages' => [[$text, '', '12']],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $pages
+     */
+    #[DataProvider('pdfsFailingTheTextLayerGate')]
+    public function test_a_pdf_failing_the_text_layer_gate_is_sent_to_the_vlm_pipeline(array $pages): void
+    {
+        Http::fake(['docling.test/v1/convert/file/async' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'pending'])]);
+        $this->fakeTextLayer(...$pages);
+        $document = $this->storedDocument('%PDF-1.4 scan', 'application/pdf');
+
+        app()->call([new ProcessDocument($document), 'handle']);
+
+        Http::assertSent(fn (Request $request): bool => $this->multipartField($request, 'pipeline') === 'vlm');
+        $this->assertSame(DoclingRoute::Vlm, $document->refresh()->route);
+    }
+
+    public function test_a_pdf_poppler_cannot_read_is_sent_to_the_vlm_pipeline(): void
+    {
+        Http::fake(['docling.test/v1/convert/file/async' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'pending'])]);
+        Process::fake(['*' => Process::result(errorOutput: 'Syntax Error: Couldn\'t find trailer dictionary', exitCode: 1)]);
+        $document = $this->storedDocument('%PDF-1.4 broken', 'application/pdf');
+
+        app()->call([new ProcessDocument($document), 'handle']);
+
+        $this->assertSame(DoclingRoute::Vlm, $document->refresh()->route);
+    }
+
+    public function test_a_blank_back_page_keeps_a_pdf_on_the_standard_pipeline(): void
+    {
+        Http::fake(['docling.test/v1/convert/file/async' => Http::response(['task_id' => self::TASK_ID, 'task_status' => 'pending'])]);
+        $this->fakeTextLayer('Руководство пользователя источника бесперебойного питания', '');
+        $document = $this->storedDocument('%PDF-1.4 leaflet', 'application/pdf');
+
+        app()->call([new ProcessDocument($document), 'handle']);
+
+        Http::assertSent(fn (Request $request): bool => $this->multipartField($request, 'pipeline') === 'standard');
+        $this->assertSame(DoclingRoute::Standard, $document->refresh()->route);
     }
 
     public function test_a_corrupted_original_fails_the_document_without_calling_docling(): void
@@ -161,6 +217,14 @@ class DocumentExtractionTest extends TestCase
         Storage::disk('documents')->put($this->rawPath($digest), $content);
 
         return Document::factory()->create(['digest' => $digest, 'mime_type' => $mimeType]);
+    }
+
+    /**
+     * pdftotext output for the given pages: every page ends with a form feed.
+     */
+    private function fakeTextLayer(string ...$pages): void
+    {
+        Process::fake(['*' => Process::result(implode('', array_map(fn (string $page): string => $page."\f", $pages)))]);
     }
 
     private function extractingDocument(): Document
