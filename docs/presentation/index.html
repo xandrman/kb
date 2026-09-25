@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GraphRAG TechnoMart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --brand: #ff5000;
+    --brand-deep: #e04500;
+    --peach: #ffe7dc;
+    --ground: #f7f8fb;
+    --surface: #ffffff;
+    --ink: #121416;
+    --graphite: #27282a;
+    --muted: #7e838c;
+    --line: #e4e6ec;
+    --ok: #12cf54;
+    --font: "Onest", "Segoe UI", Arial, Helvetica, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --r-xl: 40px;
+    --r-lg: 24px;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--graphite);
+    color: var(--ink);
+    font-family: var(--font);
+    overflow: hidden;
+  }
+
+  /* Слайд рисуется в 1920×1080 и масштабируется под окно целиком */
+  .viewport { position: fixed; inset: 0; display: grid; place-items: center; }
+  .deck { width: 1920px; height: 1080px; position: relative; transform-origin: center center; flex: none; }
+
+  .slide {
+    position: absolute; inset: 0;
+    background: var(--ground);
+    padding: 88px 104px 96px;
+    display: none;
+    flex-direction: column;
+    gap: 48px;
+  }
+  .slide.active { display: flex; }
+  @media (prefers-reduced-motion: no-preference) {
+    .slide.active > * { animation: rise .45s cubic-bezier(.2,.7,.2,1) both; }
+    .slide.active > *:nth-child(2) { animation-delay: .06s; }
+    .slide.active > *:nth-child(3) { animation-delay: .12s; }
+  }
+  @keyframes rise { from { transform: translateY(14px); } to { transform: none; } }
+
+  /* Шапка слайда: пилюля с требованием комиссии и заголовок */
+  .head { display: flex; flex-direction: column; gap: 20px; max-width: 1500px; }
+  .pill {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--peach); color: var(--brand-deep);
+    font: 600 22px/1 var(--mono);
+    padding: 14px 24px; border-radius: 999px;
+    letter-spacing: .02em;
+  }
+  .pill::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--brand); }
+  h1, h2 { margin: 0; font-weight: 800; letter-spacing: -.025em; text-wrap: balance; }
+  h2 { font-size: 76px; line-height: 1.02; }
+  h2 em { font-style: normal; color: var(--brand); }
+  .lead { margin: 0; font-size: 30px; line-height: 1.4; color: var(--muted); max-width: 60ch; }
+
+  .body { flex: 1; min-height: 0; display: grid; gap: 40px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-side { grid-template-columns: 1.55fr 1fr; }
+
+  /* Диаграммы — на белой карточке с крупным скруглением, клик открывает на весь экран */
+  .figure {
+    background: var(--surface);
+    border-radius: var(--r-xl);
+    padding: 28px;
+    min-height: 0;
+    display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 1px 0 var(--line), 0 24px 60px -32px rgba(18,20,22,.18);
+  }
+  .figure button {
+    flex: 1; min-height: 0; padding: 0; border: 0; background: none; cursor: zoom-in;
+    border-radius: var(--r-lg);
+  }
+  .figure img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .figure figcaption {
+    font: 500 20px/1.3 var(--mono); color: var(--muted);
+    display: flex; justify-content: space-between; gap: 16px;
+  }
+  .figure figcaption b { color: var(--ink); font-weight: 600; }
+
+  .points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; align-self: center; }
+  .points li { font-size: 30px; line-height: 1.35; padding-left: 40px; position: relative; }
+  .points li::before {
+    content: ""; position: absolute; left: 0; top: .42em;
+    width: 16px; height: 16px; border-radius: 50%; border: 4px solid var(--brand);
+  }
+  .points li span { display: block; font-size: 23px; color: var(--muted); margin-top: 6px; }
+
+  .tag {
+    display: inline-block; font: 600 22px/1 var(--mono);
+    padding: 8px 14px; border-radius: 999px; background: var(--ink); color: #fff;
+    vertical-align: .12em;
+  }
+  .tag.soft { background: var(--peach); color: var(--brand-deep); }
+
+  /* Титул */
+  .title-slide { background: var(--graphite); color: #fff; justify-content: space-between; }
+  .title-slide .pill { background: rgba(255,80,0,.16); color: #ff9a66; }
+  .title-slide h1 { font-size: 132px; line-height: .95; letter-spacing: -.04em; max-width: 13ch; }
+  .title-slide h1 span { color: var(--brand); }
+  .title-slide .lead { color: #b9bdc6; font-size: 34px; }
+  .meta-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .meta-row .chip {
+    font: 500 24px/1 var(--mono); color: #fff;
+    border: 2px solid rgba(255,255,255,.18); padding: 16px 24px; border-radius: 999px;
+  }
+  .meta-row .chip b { color: var(--brand); font-weight: 600; }
+
+  /* Стек */
+  .stack { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-content: start; }
+  .card {
+    background: var(--surface); border-radius: var(--r-lg); padding: 26px 28px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .card .k { font: 600 18px/1 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .card .v { font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+  .card .d { font-size: 21px; line-height: 1.4; color: var(--graphite); }
+  .card .adr { font: 500 18px/1 var(--mono); color: var(--brand-deep); margin-top: auto; padding-top: 6px; }
+
+  .code {
+    background: var(--ink); color: #e9eaee; border-radius: var(--r-xl);
+    padding: 36px 40px; display: flex; flex-direction: column; gap: 22px;
+  }
+  .code .k { font: 600 18px/1 var(--mono); color: #ff9a66; text-transform: uppercase; letter-spacing: .08em; }
+  .code pre { margin: 0; font: 400 22px/1.55 var(--mono); white-space: pre; overflow-x: auto; }
+  .code pre .c { color: #7e838c; }
+  .code pre .n { color: #ff9a66; }
+  .code .note { font-size: 22px; line-height: 1.45; color: #b9bdc6; }
+  .swap { display: grid; grid-template-columns: auto auto 1fr; gap: 10px 16px; font-size: 21px; align-items: baseline; }
+  .swap s { color: #7e838c; }
+  .swap i { font-style: normal; color: var(--brand); }
+
+  /* Итоги: тёмный фон, яркие плашки требований ТЗ внизу */
+  .final { background: var(--graphite); color: #fff; }
+  .final .pill { background: rgba(255,80,0,.16); color: #ff9a66; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 48px; align-content: start; }
+  .checks div {
+    font-size: 27px; line-height: 1.3; display: flex; gap: 18px; align-items: baseline;
+    padding-bottom: 14px; border-bottom: 2px solid rgba(255,255,255,.12);
+  }
+  .checks div::before { content: "✓"; font-weight: 800; color: var(--brand); }
+  .checks div small { display: block; font-size: 20px; color: #b9bdc6; }
+  .numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .num { background: var(--brand); color: #fff; border-radius: var(--r-lg); padding: 24px 28px; display: flex; flex-direction: column; gap: 8px; }
+  .num:nth-child(even) { background: var(--peach); color: var(--ink); }
+  .num .k { font: 600 17px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .06em; opacity: .85; }
+  .num .v { font-size: 56px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .num .v small { font-size: 26px; font-weight: 600; opacity: .75; }
+  .num .t { font: 500 18px/1.2 var(--mono); opacity: .85; }
+  .num:nth-child(even) .t { color: var(--brand-deep); opacity: 1; }
+
+  /* Навигация */
+  .progress { position: absolute; left: 104px; right: 104px; bottom: 40px; display: flex; gap: 10px; }
+  .progress i { flex: 1; height: 6px; border-radius: 999px; background: rgba(126,131,140,.25); }
+  .progress i.on { background: var(--brand); }
+  .final .progress i { background: rgba(255,255,255,.18); }
+  .counter { position: absolute; right: 104px; top: 88px; font: 600 22px/1 var(--mono); color: var(--muted); }
+  .title-slide .counter, .final .counter { color: rgba(255,255,255,.6); }
+
+  /* Диаграмма во весь экран */
+  .zoom {
+    position: fixed; inset: 0; background: rgba(18,20,22,.94);
+    display: flex; padding: 24px; cursor: zoom-out; z-index: 10;
+    overflow: auto; overscroll-behavior: contain;
+  }
+  .zoom[hidden] { display: none; }
+  /* Вписываем по ширине; высокая диаграмма прокручивается, margin: auto центрирует без обрезки верха */
+  .zoom img { display: block; margin: auto; max-width: 100%; height: auto; background: #fff; border-radius: 16px; padding: 16px; }
+
+  button:focus-visible { outline: 4px solid var(--brand); outline-offset: 6px; }
+</style>
+</head>
+<body>
+<div class="viewport">
+  <main class="deck" id="deck">
+
+    <!-- 1. Титул -->
+    <section class="slide title-slide" aria-label="Титул">
+      <div class="head">
+        <span class="pill">Александр Ш. · ТЗ-ТМ-2026-014 · Advanced RAG + Security</span>
+      </div>
+      <h1>Платформа знаний на <span>GraphRAG</span></h1>
+      <div class="head">
+        <p class="lead">Ответы сервисной службы TechnoMart только по загруженным документам. Закрытый контур, без облачных API.</p>
+        <div class="meta-row">
+          <span class="chip"><b>MCP</b>-инструмент в системе диалогов</span>
+          <span class="chip">вектор <b>+</b> граф знаний</span>
+          <span class="chip">RBAC до узла графа</span>
+          <span class="chip">guardrails</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. C4 L1 -->
+    <section class="slide" aria-label="C4 Context">
+      <div class="head">
+        <span class="pill">C4 Level 1 · Context</span>
+        <h2>Платформа встроена в <em>существующий ландшафт</em></h2>
+      </div>
+      <div class="body cols-side">
+        <figure class="figure" style="margin:0">
+          <button type="button" data-zoom><img src="../architecture/C4L1.png" alt="C4 Level 1: контекст платформы"></button>
+          <figcaption><b>docs/architecture/C4L1.dsl</b><span>Structurizr DSL · ADR-0017</span></figcaption>
+        </figure>
+        <ul class="points">
+          <li>Сотрудник работает в привычной системе диалогов<span>LibreChat вызывает платформу как MCP-инструмент</span></li>
+          <li>Единый вход через Keycloak<span>Токен пользователя несёт роль и допуск</span></li>
+          <li>Администратор загружает корпус через админ-панель<span>SKU, тип, гриф, отдел — обязательны</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 3. C4 L3 + Deployment -->
+    <section class="slide" aria-label="C4 Component и Deployment">
+      <div class="head">
+        <span class="pill">C4 Level 3 · Component + Deployment</span>
+        <h2>Компоненты MCP-сервера и <em>размещение на GPU</em></h2>
+      </div>
+      <div class="body" style="grid-template-columns: 1.7fr 1fr">
+        <figure class="figure" style="margin:0">
+          <button type="button" data-zoom><img src="../architecture/C4L3.png" alt="C4 Level 3: компоненты MCP-сервера"></button>
+          <figcaption><b>C4L3</b><span>оркестратор · guardrails · RAG-агент · поиск · инструменты</span></figcaption>
+        </figure>
+        <figure class="figure" style="margin:0">
+          <button type="button" data-zoom><img src="../architecture/Deployment.png" alt="Deployment: размещение на сервере"></button>
+          <figcaption><b>Deployment</b><span>4× RTX 3090</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 4. Sequence + ER -->
+    <section class="slide" aria-label="Sequence и ER">
+      <div class="head">
+        <span class="pill">Sequence · ER</span>
+        <h2>Путь вопроса и <em>модель данных</em></h2>
+      </div>
+      <div class="body cols-2">
+        <figure class="figure" style="margin:0">
+          <button type="button" data-zoom><img src="../diagrams/sequence-query.png" alt="Sequence: путь вопроса"></button>
+          <figcaption><b>Chat → MCP → Guardrails → Vector → Graph → Rerank → Guardrails</b></figcaption>
+        </figure>
+        <figure class="figure" style="margin:0">
+          <button type="button" data-zoom><img src="../diagrams/er.png" alt="ER-диаграмма"></button>
+          <figcaption><b>Чанки, права, сессии, журналы</b><span>PostgreSQL + Qdrant + Neo4j</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 5. Стек -->
+    <section class="slide" aria-label="Стек">
+      <div class="head">
+        <span class="pill">Infrastructure &amp; Stack · ADR</span>
+        <h2>Каждый выбор — с <em>разбором</em></h2>
+      </div>
+      <div class="body" style="grid-template-columns: 1.5fr 1fr">
+        <div class="stack">
+          <div class="card"><span class="k">Serving</span><span class="v">vLLM</span><span class="d">AutoRound INT4, FP8 KV-cache, prefix caching, TP=2</span><span class="adr">ADR-0008 · 0016</span></div>
+          <div class="card"><span class="k">Модель</span><span class="v">Qwen3.6-35B-A3B</span><span class="d">MoE, ~3B активных; русский язык</span><span class="adr">ADR-0009</span></div>
+          <div class="card"><span class="k">Эмбеддинги · Rerank</span><span class="v">Giga + BGE</span><span class="d">Giga-Embeddings 1536, bge-reranker</span><span class="adr">ADR-0010 · 0011</span></div>
+          <div class="card"><span class="k">Вектор</span><span class="v">Qdrant</span><span class="d">Фильтр по грифу внутри ANN, не после</span><span class="adr">ADR-0006</span></div>
+          <div class="card"><span class="k">Граф</span><span class="v">Neo4j</span><span class="d">Права на каждом шаге обхода (QPP)</span><span class="adr">ADR-0007</span></div>
+          <div class="card"><span class="k">Наблюдаемость</span><span class="v">OTel → Tempo</span><span class="d">Prometheus, Loki, Grafana; Alloy</span><span class="adr">ADR-0002…0005</span></div>
+        </div>
+        <div class="code">
+          <span class="k">Оркестрация — граф узлов, не цепочка</span>
+<pre><span class="c">// KnowledgeBaseRag::ragNodes()</span>
+[
+  <span class="n">PreProcessNode</span>,
+  <span class="n">ProgressiveRetrievalNode</span>,
+  <span class="n">PostProcessNode</span>,
+  <span class="n">GroundedContextNode</span>,
+]</pre>
+          <p class="note" style="margin:0">Neuron AI Workflow — машина состояний на PHP, аналог LangGraph (ADR-0022).</p>
+          <div class="swap">
+            <s>LangGraph</s><span>→</span><i>Neuron AI Workflow</i>
+            <s>Python</s><span>→</span><i>PHP 8 — ТЗ п. 7.6</i>
+            <s>compose / Helm</s><span>→</span><i>Terraform — ADR-0001</i>
+            <s>Jaeger</s><span>→</span><i>Tempo, тот же OTel</i>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Итоги -->
+    <section class="slide final" aria-label="Итоги">
+      <div class="head">
+        <span class="pill">Итоги</span>
+        <h2>Что показали <em>под капотом</em></h2>
+      </div>
+      <div class="body" style="grid-template-rows: 1fr auto">
+        <div class="checks">
+          <div><span>GraphRAG: вектор + граф, multi-hop<small>ответ по документам или отказ</small></span></div>
+          <div><span>RBAC: пользователь B не видит секретное<small>в том числе через связи графа</small></span></div>
+          <div><span>Input / output guardrails<small>ПДн скрыты, injection заблокирован</small></span></div>
+          <div><span>Потоковый прогресс стадий<small>ADR-0031</small></span></div>
+          <div><span>Трейсы Tempo и логи vLLM<small>Grafana Explore</small></span></div>
+          <div><span>Граф знаний в Neo4j Browser<small>Узлы и связи</small></span></div>
+        </div>
+        <div class="numbers">
+          <div class="num"><span class="k">TTFT, P95</span><span class="v">≤ 5 <small>с</small></span><span class="t">ТЗ п. 6.1</span></div>
+          <div class="num"><span class="k">Полный ответ, P95</span><span class="v">≤ 30 <small>с</small></span><span class="t">ТЗ п. 6.1</span></div>
+          <div class="num"><span class="k">Одновременно</span><span class="v">≥ 10 <small>польз.</small></span><span class="t">ТЗ п. 6.1</span></div>
+          <div class="num"><span class="k">Распознавание документа</span><span class="v">≤ 30 <small>мин</small></span><span class="t">до 100 страниц, ТЗ п. 6.2</span></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="zoom" id="zoom" tabindex="-1" hidden><img alt=""></div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const slides = [...deck.querySelectorAll('.slide')];
+  const zoom = document.getElementById('zoom');
+  let current = 0;
+
+  slides.forEach((slide, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'progress';
+    bar.innerHTML = slides.map((_, j) => `<i class="${j <= i ? 'on' : ''}"></i>`).join('');
+    slide.append(bar);
+    const counter = document.createElement('div');
+    counter.className = 'counter';
+    counter.textContent = `${i + 1} / ${slides.length}`;
+    slide.append(counter);
+  });
+
+  function fit() {
+    const scale = Math.min(innerWidth / 1920, innerHeight / 1080);
+    deck.style.transform = `scale(${scale})`;
+  }
+
+  function show(i) {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, j) => s.classList.toggle('active', j === current));
+    history.replaceState(null, '', `#${current + 1}`);
+  }
+
+  function closeZoom() { zoom.hidden = true; }
+
+  deck.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-zoom]');
+    if (trigger) {
+      zoom.querySelector('img').src = trigger.querySelector('img').src;
+      zoom.querySelector('img').alt = trigger.querySelector('img').alt;
+      zoom.hidden = false;
+      zoom.scrollTop = 0;
+      zoom.focus();
+    }
+  });
+  zoom.addEventListener('click', closeZoom);
+
+  addEventListener('keydown', (e) => {
+    if (!zoom.hidden) { if (['Escape', ' ', 'Enter'].includes(e.key)) closeZoom(); return; }
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(current + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+    if (e.key === 'f' || e.key === 'F') {
+      document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  });
+
+  addEventListener('resize', fit);
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
