@@ -158,6 +158,9 @@ resource "docker_container" "vllm_embedding" {
     "NVIDIA_VISIBLE_DEVICES=${var.vllm_embedding_gpus}",
     "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
     "HF_HUB_OFFLINE=1",
+    # Подобранный под RTX 3090 (200 Вт) конфиг MoE-ядер (ADR-0035): benchmark_moe.py --tune из образа v0.29.0,
+    # Triton 3.7.1. При смене версии vLLM, карты или лимита мощности подбор повторяется
+    "VLLM_TUNED_CONFIG_FOLDER=/moe-configs",
     "OTEL_SERVICE_NAME=kb-vllm-embedding",
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://kb-alloy:4317",
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE=true",
@@ -170,8 +173,9 @@ resource "docker_container" "vllm_embedding" {
     "--tensor-parallel-size", "1",
     "--gpu-memory-utilization", "0.9",
     "--max-num-seqs", "16",
-    # Без CUDA-графов: прогрев размечает рабочий буфер MoE на ~32 токена (1 MB), и батч крупнее роняет движок —
-    # в 0.29 буфер растёт под захваченными графами (illegal memory access), в 0.30 заблокирован ("Workspace is locked")
+    # Без CUDA-графов (ADR-0035): прогрев размечает рабочий буфер MoE на ~32 токена (1 MB), и батч крупнее роняет
+    # движок — в 0.29 буфер растёт под захваченными графами (illegal memory access),
+    # в 0.30 заблокирован ("Workspace is locked")
     "--enforce-eager",
     "--runner", "pooling",
     "--convert", "embed",
@@ -190,6 +194,11 @@ resource "docker_container" "vllm_embedding" {
   volumes {
     container_path = local.model_path
     volume_name    = docker_volume.models["embedding"].name
+  }
+
+  upload {
+    file    = "/moe-configs/E=64,N=1280,device_name=NVIDIA_GeForce_RTX_3090.json"
+    content = file("${path.module}/vllm-embedding/E=64,N=1280,device_name=NVIDIA_GeForce_RTX_3090.json")
   }
 
   networks_advanced {
