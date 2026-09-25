@@ -65,6 +65,15 @@ return [
         'expansion_limit' => (int) env('GRAPH_EXPANSION_LIMIT', 5),
         // Сущности с большим числом связей (модель изделия) — хабы: через них обход не идёт
         'max_degree' => (int) env('GRAPH_MAX_DEGREE', 30),
+        // Второй шаг multi-hop через общую модель изделия: из скольких чанков других документов выбирать и сколько брать на модель
+        'bridge_candidates' => (int) env('GRAPH_BRIDGE_CANDIDATES', 500),
+        'bridge_limit' => (int) env('GRAPH_BRIDGE_LIMIT', 2),
+    ],
+
+    // Поиск по номеру акта или коду модели из вопроса: сколько идентификаторов искать и сколько чанков брать на каждый
+    'identifiers' => [
+        'limit' => (int) env('IDENTIFIER_SEARCH_LIMIT', 3),
+        'chunks' => (int) env('IDENTIFIER_SEARCH_CHUNKS', 2),
     ],
 
     // ADR-0006: векторный индекс чанков; размерность снята с модели фактически (ADR-0010, п. 6)

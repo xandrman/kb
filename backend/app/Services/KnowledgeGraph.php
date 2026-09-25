@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Actions\ExtractChunkGraph;
 use App\Enums\AccessLevel;
+use App\Enums\EntityType;
 use App\Models\Document;
 use App\Neuron\Output\ExtractedEntity;
 use App\Neuron\Output\ExtractedGraph;
@@ -142,6 +143,37 @@ class KnowledgeGraph
             'paths' => $row['paths'],
             'facts' => array_values([...$row['facts']]),
         ], array_values($rows));
+    }
+
+    /**
+     * Chunks of other documents that mention the same equipment as the seed chunks, within the clearance (FR-5, FR-7).
+     *
+     * Модель изделия — хаб, и обход по связям через неё не идёт (relatedChunks). Но она же связывает документы
+     * об одном изделии: акт ремонта и паспорт модели. Кандидатов много, поэтому здесь они только собираются —
+     * ближайшие к вопросу отбирает векторный поиск среди них.
+     *
+     * @param  list<string>  $seedChunkIds
+     * @return list<array{chunk_id: string, equipment: string}>
+     */
+    public function equipmentBridgedChunks(array $seedChunkIds, AccessLevel $clearance, int $limit): array
+    {
+        if ($seedChunkIds === []) {
+            return [];
+        }
+
+        return array_values($this->graphStore->query(<<<'CYPHER'
+            MATCH (equipment:Entity {type: $equipmentType})<-[:MENTIONS]-(seed:Chunk), (equipment)<-[:MENTIONS]-(other:Chunk)
+            WHERE seed.id IN $seedChunkIds AND equipment.access_rank <= $rank AND other.access_rank <= $rank
+              AND other.document_id <> seed.document_id AND NOT other.id IN $seedChunkIds
+            RETURN DISTINCT other.id AS chunk_id, equipment.name AS equipment
+            ORDER BY equipment, chunk_id
+            LIMIT $limit
+            CYPHER, [
+            'seedChunkIds' => $seedChunkIds,
+            'equipmentType' => EntityType::Equipment->value,
+            'rank' => $clearance->rank(),
+            'limit' => $limit,
+        ]));
     }
 
     /**

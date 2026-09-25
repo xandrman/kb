@@ -52,9 +52,20 @@ class DoclingClient
     /**
      * Split a stored DoclingDocument with HybridChunker, without converting the original again (ADR-0012).
      *
-     * @return list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null}>
+     * @return list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null, doc_items?: list<string>}>
      */
     public function chunk(string $doclingJson, string $fileName): array
+    {
+        return $this->withOrphanHeadings(
+            json_decode($doclingJson, true, 512, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR),
+            $this->hybridChunks($doclingJson, $fileName),
+        );
+    }
+
+    /**
+     * @return list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null, doc_items?: list<string>}>
+     */
+    private function hybridChunks(string $doclingJson, string $fileName): array
     {
         $response = $this->request()
             ->attach('files', $doclingJson, $fileName)
@@ -73,6 +84,94 @@ class DoclingClient
         }
 
         return $response->json('chunks');
+    }
+
+    /**
+     * Put back the headings HybridChunker drops: a heading followed straight by a heading of the same level has no text
+     * of its own, so it is in no chunk and in no chunk's headings. The number and date of a service act live in such a heading.
+     *
+     * @param  array<string, mixed>  $doclingDocument
+     * @param  list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null, doc_items?: list<string>}>  $chunks
+     * @return list<array{text: string, chunk_index: int, headings: list<string>|null, page_numbers: list<int>|null, doc_items?: list<string>}>
+     */
+    private function withOrphanHeadings(array $doclingDocument, array $chunks): array
+    {
+        $order = array_flip($this->readingOrder($doclingDocument, $doclingDocument['body'] ?? []));
+        $covered = array_merge([], ...array_map(fn (array $chunk): array => $chunk['doc_items'] ?? [], $chunks));
+        $keptHeadings = array_merge([], ...array_map(fn (array $chunk): array => $chunk['headings'] ?? [], $chunks));
+
+        $orphans = array_filter($doclingDocument['texts'] ?? [], fn (array $item): bool => in_array($item['label'] ?? null, ['title', 'section_header'], true)
+            && isset($order[$item['self_ref'] ?? ''])
+            && ! in_array($item['self_ref'], $covered, true)
+            && ! in_array($item['text'], $keptHeadings, true));
+        usort($orphans, fn (array $left, array $right): int => $order[$left['self_ref']] <=> $order[$right['self_ref']]);
+
+        $headingsByChunk = [];
+        foreach ($orphans as $heading) {
+            $target = $this->firstChunkAfter($chunks, $order, $order[$heading['self_ref']]);
+
+            if ($target !== null) {
+                $headingsByChunk[$target][] = $heading['text'];
+            }
+        }
+
+        foreach ($headingsByChunk as $target => $headings) {
+            $chunks[$target]['text'] = implode("\n", $headings)."\n".$chunks[$target]['text'];
+            $chunks[$target]['headings'] = [...$headings, ...$chunks[$target]['headings'] ?? []];
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * References of the document items in reading order: the body tree walked depth first.
+     *
+     * @param  array<string, mixed>  $doclingDocument
+     * @param  array<string, mixed>  $node
+     * @return list<string>
+     */
+    private function readingOrder(array $doclingDocument, array $node): array
+    {
+        $references = [];
+
+        foreach ($node['children'] ?? [] as $child) {
+            $reference = $child['$ref'];
+            $references[] = $reference;
+
+            // Ссылка вида #/groups/0 указывает на элемент документа; у групп и таблиц свои дети
+            [, $collection, $index] = array_pad(explode('/', $reference), 3, null);
+            $item = $doclingDocument[$collection][(int) $index] ?? null;
+
+            if (is_array($item)) {
+                $references = [...$references, ...$this->readingOrder($doclingDocument, $item)];
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * The chunk that starts first after the position; headings are prepended to it.
+     *
+     * @param  list<array{doc_items?: list<string>}>  $chunks
+     * @param  array<string, int>  $order
+     */
+    private function firstChunkAfter(array $chunks, array $order, int $position): ?int
+    {
+        $target = null;
+        $targetStart = PHP_INT_MAX;
+
+        foreach ($chunks as $index => $chunk) {
+            $positions = array_map(fn (string $reference): int => $order[$reference] ?? PHP_INT_MAX, $chunk['doc_items'] ?? []);
+            $start = $positions === [] ? PHP_INT_MAX : min($positions);
+
+            if ($start > $position && $start < $targetStart) {
+                $target = $index;
+                $targetStart = $start;
+            }
+        }
+
+        return $target;
     }
 
     /**

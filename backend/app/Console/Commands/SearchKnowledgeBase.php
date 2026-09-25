@@ -38,7 +38,11 @@ class SearchKnowledgeBase extends Command
         }
 
         $this->table(['Найден', $isReranked ? 'Реранк' : 'Сходство', 'Документ', 'Страницы', 'Гриф', 'Текст'], array_map(fn (Chunk $chunk): array => [
-            ($chunk->metadata['retrieved_by'] ?? '') === 'graph' ? 'граф' : 'вектор',
+            match ($chunk->metadata['retrieved_by'] ?? '') {
+                'graph' => 'граф',
+                'identifier' => 'номер',
+                default => 'вектор',
+            },
             ! $isReranked && ($chunk->metadata['retrieved_by'] ?? '') === 'graph' ? '—' : number_format($chunk->getScore(), 3),
             $chunk->metadata['document_id'] ?? '—',
             implode(', ', $chunk->metadata['page_numbers'] ?? []),
