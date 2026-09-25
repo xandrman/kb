@@ -40,6 +40,20 @@ class ChunkLanguageTest extends TestCase
         ];
     }
 
+    public function test_function_words_are_not_counted_in_a_table(): void
+    {
+        $table = 'Battery Run Time, UPS = 6k. Backup Time (mins) = 60. Load = 1 kW. UPS = 10k. Backup Time (mins) = 240. Load = 2 kW. '
+            .'UPS = 6k. Backup Time (mins) = 25. Load = 3 kW.';
+
+        $this->assertTrue((new ChunkLanguage)->isRussianOrEnglish($table, hasTable: true));
+        $this->assertFalse((new ChunkLanguage)->isRussianOrEnglish($table));
+    }
+
+    public function test_a_table_in_another_latin_language_is_still_dropped(): void
+    {
+        $this->assertFalse((new ChunkLanguage)->isRussianOrEnglish('Tensiune nominală, V = 220-240. Frecvență nominală, Hz = 50. Clasă energetică = A+. Nivel de zgomot, dB = 40', hasTable: true));
+    }
+
     #[DataProvider('russianOrEnglish')]
     public function test_russian_english_and_language_neutral_chunks_are_kept(string $text): void
     {

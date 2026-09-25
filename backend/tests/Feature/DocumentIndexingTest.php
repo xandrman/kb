@@ -198,6 +198,21 @@ class DocumentIndexingTest extends TestCase
         $this->llm->assertMethodCallCount('structured', 2);
     }
 
+    public function test_an_english_table_without_function_words_is_indexed(): void
+    {
+        $table = 'Communication 5.1 RS232 and USB Port Definition, 1 = Empty. Definition, 2 = Transmit. Definition, 3 = Receive. '
+            .'Definition, 4 = Empty. Definition, 5 = GND. Pins, 1 = 6. Pins, 2 = 7. Pins, 3 = 8. Pins, 4 = 9.';
+        $this->fakeChunks([
+            [...$this->chunk(0, $table), 'doc_items' => ['#/texts/0', '#/tables/0']],
+            $this->chunk(1, 'Normally UPS working mode include normal mode, bypass mode, battery mode, ECO mode, frequency converter mode, self aging mode.'),
+        ]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->assertSame([0], array_map(fn (Chunk $point): int => $point->metadata['chunk_index'], $this->points()));
+    }
+
     public function test_a_document_with_no_russian_or_english_text_fails(): void
     {
         $this->fakeChunks([$this->chunk(0, 'Холодильник відповідно до малюнку 1 призначений для заморожування свіжих харчових продуктів.')]);

@@ -65,7 +65,7 @@ class IndexDocumentChunks
 
         // Корпус русско-английский (ТЗ 4.3): разделы многоязычных руководств на других языках не индексируются.
         // Номер чанка сохраняется — от него зависит id точки и узла графа
-        $chunks = array_values(array_filter($allChunks, fn (array $chunk): bool => $this->language->isRussianOrEnglish($chunk['text'])));
+        $chunks = array_values(array_filter($allChunks, fn (array $chunk): bool => $this->language->isRussianOrEnglish($chunk['text'], $this->hasTable($chunk))));
 
         if ($chunks === []) {
             throw new RuntimeException('В документе нет текста на русском или английском языке.');
@@ -123,6 +123,14 @@ class IndexDocumentChunks
                 }
             })
             ->dispatch();
+    }
+
+    /**
+     * @param  array{doc_items?: list<string>}  $chunk
+     */
+    private function hasTable(array $chunk): bool
+    {
+        return array_any($chunk['doc_items'] ?? [], fn (string $reference): bool => str_starts_with($reference, '#/tables/'));
     }
 
     /**

@@ -34,7 +34,10 @@ class ChunkLanguage
         'it', 'this', 'that', 'from', 'not', 'do', 'if', 'you', 'your', 'can', 'should', 'must', 'will', 'when', 'which',
     ];
 
-    public function isRussianOrEnglish(string $text): bool
+    /**
+     * @param  bool  $hasTable  the chunk holds a docling table: its function words are not counted (ADR-0028)
+     */
+    public function isRussianOrEnglish(string $text, bool $hasTable = false): bool
     {
         $text = mb_strtolower($text);
 
@@ -47,10 +50,10 @@ class ChunkLanguage
 
         return $cyrillic >= $latin
             ? $this->share($text, self::NON_RUSSIAN_CYRILLIC, $cyrillic) < 0.01
-            : $this->isEnglish($text, $latin);
+            : $this->isEnglish($text, $latin, $hasTable);
     }
 
-    private function isEnglish(string $text, int $latin): bool
+    private function isEnglish(string $text, int $latin, bool $hasTable): bool
     {
         if ($this->share($text, self::NON_ENGLISH_LATIN, $latin) >= 0.01) {
             return false;
@@ -61,7 +64,12 @@ class ChunkLanguage
             return false;
         }
 
-        // Служебные слова решают только для связного текста: в таблице характеристик их нет и на английском
+        // Служебные слова решают только для связного текста: в таблице характеристик их нет и на английском.
+        // Сериализованная таблица длиннее порога связного текста, поэтому она узнаётся по элементу docling, а не по числу слов
+        if ($hasTable) {
+            return true;
+        }
+
         $words = array_filter(preg_split('/[^a-z]+/', $text, flags: PREG_SPLIT_NO_EMPTY) ?: [], fn (string $word): bool => strlen($word) > 1);
 
         if (count($words) < 15) {
