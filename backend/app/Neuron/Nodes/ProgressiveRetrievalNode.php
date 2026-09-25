@@ -42,7 +42,7 @@ class ProgressiveRetrievalNode extends Node
             ? 'Ищу связанные сведения в графе знаний…'
             : 'Ищу связи с «'.implode('», «', $entities).'»…');
 
-        $chunks = [...$found, ...$this->retrieval->graphExpansion($found)];
+        $chunks = [...$found, ...$this->retrieval->graphExpansion($found, (string) $query->getContent())];
 
         yield new ProgressEvent('Проверяю, какие фрагменты отвечают на вопрос (найдено: '.count($chunks).')…');
 

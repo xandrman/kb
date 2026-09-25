@@ -100,6 +100,10 @@ librechat_jwt_refresh_secret = "<openssl rand -hex 32>"
 librechat_session_secret     = "<openssl rand -hex 32>"
 librechat_creds_key          = "<openssl rand -hex 32>"
 librechat_creds_iv           = "<openssl rand -hex 16>"
+
+# Ключи API Qdrant: полный — kb-app и воркерам, только на чтение — Prometheus. Значения должны различаться
+qdrant_api_key           = "<openssl rand -hex 32>"
+qdrant_read_only_api_key = "<openssl rand -hex 32>"
 ```
 
 Полный список переменных с описаниями — в [`infra/variables.tf`](infra/variables.tf). Пароли PostgreSQL, Neo4j, администратора Keycloak и seed-пользователя применяются только при первом старте с пустыми томами. Если сменить их позже в `tfvars`, пароли в уже развёрнутых сервисах не изменятся.
@@ -164,6 +168,7 @@ docker logs -f kb-hf-cli-embedding-tokenizer
 
 - Изменения в `backend/` или `infra/` применяются повторным `terraform apply`: Terraform пересобирает образы по хешам исходников.
 - Замена сертификата: положите новые `fullchain.pem` и `privkey.pem` в `infra/tls/` и выполните `docker exec kb-nginx nginx -s reload`.
+- Ключи API Qdrant можно ввести или сменить в любой момент. Впишите `qdrant_api_key` и `qdrant_read_only_api_key` в `terraform.tfvars` и выполните `terraform apply`: Terraform пересоздаст `kb-qdrant`, `kb-app`, воркеры и `kb-prometheus`. Данные Qdrant лежат в томе и сохраняются.
 - `terraform destroy` удаляет контейнеры, сети **и тома с данными**, в том числе загруженные документы, индексы и модели. Сертификат в `infra/tls/` остаётся.
 
 ### Ограничения MVP
@@ -171,7 +176,7 @@ docker logs -f kb-hf-cli-embedding-tokenizer
 - Образы и модели скачиваются из интернета, поэтому для первого развёртывания нужен выход наружу. Установка из заранее загруженных образов и моделей пока не реализована.
 - Сертификат не продлевается автоматически: срок действия отслеживает оператор (ADR-0033).
 - Секреты передаются через `terraform.tfvars`. Хранение в Vault (п. 6.4 ТЗ) пока не реализовано.
-- TLS есть на внешнем периметре (nginx). Каналы между сервисами внутри `kb-internal` пока без TLS.
+- TLS есть на внешнем периметре (nginx). Каналы между сервисами внутри `kb-internal` пока без TLS, поэтому ключ API Qdrant передаётся по сети открытым текстом.
 
 ---
 

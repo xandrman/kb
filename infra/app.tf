@@ -260,6 +260,7 @@ locals {
     "EMBEDDING_URL=http://kb-vllm-embedding:8000/v1",
     "EMBEDDING_MODEL=default",
     "QDRANT_URL=http://kb-qdrant:6333",
+    "QDRANT_API_KEY=${var.qdrant_api_key}",
     # ADR-0007: граф знаний
     "NEO4J_URI=bolt://kb-neo4j:7687",
     "NEO4J_USERNAME=neo4j",

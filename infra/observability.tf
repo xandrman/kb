@@ -189,6 +189,12 @@ resource "docker_container" "prometheus" {
     content = file("${path.module}/prometheus/prometheus.yml")
   }
 
+  # Ключ Qdrant только на чтение: с ключом /metrics без авторизации отвечает 401
+  upload {
+    file    = "/etc/prometheus/qdrant-api-key"
+    content = var.qdrant_read_only_api_key
+  }
+
   volumes {
     container_path = "/prometheus"
     volume_name    = docker_volume.prometheus_data.name

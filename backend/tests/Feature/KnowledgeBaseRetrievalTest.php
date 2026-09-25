@@ -163,6 +163,114 @@ class KnowledgeBaseRetrievalTest extends TestCase
         ]]);
     }
 
+    public function test_the_equipment_of_found_chunks_leads_to_the_closest_chunks_of_other_documents_about_it(): void
+    {
+        // Акт ремонта найден; ответ на вторую часть вопроса — в паспорте той же модели
+        $this->fakeQdrant([$this->point('act-chunk', 'АКТ СЕРВИСНОГО ОБСЛУЖИВАНИЯ. Товар: SNR-UPS-BCRM-480-9')]);
+        $this->graphStore->responder = fn (string $query): array => str_contains($query, '(equipment:Entity')
+            ? [
+                ['chunk_id' => 'passport-batteries', 'equipment' => 'SNR-UPS-BCRM-480-9'],
+                ['chunk_id' => 'passport-dimensions', 'equipment' => 'SNR-UPS-BCRM-480-9'],
+            ]
+            : [];
+        Http::fake(['qdrant.test/collections/chunks/points/query' => Http::response(['result' => ['points' => [
+            ['id' => 'passport-batteries', 'score' => 0.34, 'payload' => ['content' => 'Аккумуляторы 12 В 9 Ач в количестве 40 шт.', 'sourceType' => 'document', 'sourceName' => '19', 'document_id' => 19, 'page_numbers' => [3], 'access_level' => 'public']],
+        ]]])]);
+
+        $chunks = $this->retrieve('Что ремонтировали в батарейном блоке и сколько в нём аккумуляторов по паспорту?', AccessLevel::Internal);
+
+        $this->assertSame(['act-chunk', 'passport-batteries'], array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $chunks));
+        $this->assertSame('graph', $chunks[1]->metadata['retrieved_by']);
+        $this->assertSame(['SNR-UPS-BCRM-480-9 — та же модель изделия, что в найденных фрагментах'], $chunks[1]->metadata['graph_facts']);
+        $this->assertSame(0.34, $chunks[1]->getScore());
+
+        $bridgeQuery = $this->graphStore->parametersOf('(equipment:Entity')[0];
+        $this->assertSame(['act-chunk'], $bridgeQuery['seedChunkIds']);
+        $this->assertSame('Equipment', $bridgeQuery['equipmentType']);
+        $this->assertSame(AccessLevel::Internal->rank(), $bridgeQuery['rank']);
+
+        // Кандидаты упорядочивает вектор вопроса, и Qdrant ещё раз проверяет гриф (FR-7)
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'http://qdrant.test/collections/chunks/points/query'
+            && $request->data()['query'] === self::QUESTION_VECTOR
+            && $request->data()['filter'] === ['must' => [
+                ['has_id' => ['passport-batteries', 'passport-dimensions']],
+                ['key' => 'access_level', 'match' => ['any' => ['public', 'internal']]],
+            ]]
+            && $request->data()['limit'] === 2);
+        $this->assertCount(1, $this->embeddedTexts);
+    }
+
+    public function test_each_equipment_gets_its_own_closest_chunks_and_only_the_best_seeds_lead_to_equipment(): void
+    {
+        $this->fakeQdrant(array_map(fn (int $number): array => $this->point("seed-{$number}", "Фрагмент {$number}"), range(1, 5)));
+        $this->graphStore->responder = fn (string $query): array => str_contains($query, '(equipment:Entity')
+            ? [
+                ['chunk_id' => 'lid-passport', 'equipment' => 'SNR-UPS-LID-1500'],
+                ['chunk_id' => 'onrm-passport', 'equipment' => 'SNR-UPS-ONRM-1000-S24'],
+            ]
+            : [];
+        Http::fake(fn (Request $request) => Http::response(['result' => ['points' => [[
+            'id' => $request->data()['filter']['must'][0]['has_id'][0],
+            'score' => 0.3,
+            'payload' => ['content' => 'Паспорт', 'sourceType' => 'document', 'sourceName' => '4', 'document_id' => 4, 'access_level' => 'public'],
+        ]]]]));
+
+        $chunks = $this->retrieve('Какое время автономной работы у этих ИБП?', AccessLevel::Public);
+
+        $this->assertSame(['lid-passport', 'onrm-passport'], array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), array_slice($chunks, 5)));
+        $this->assertSame(['seed-1', 'seed-2', 'seed-3'], $this->graphStore->parametersOf('(equipment:Entity')[0]['seedChunkIds']);
+        Http::assertSentCount(2);
+    }
+
+    public function test_identifiers_are_the_tokens_of_the_question_with_a_digit(): void
+    {
+        $this->assertSame(
+            ['СЦ-714029', 'SNR-UPS-BCRM-480-9', 'MAG301RF'],
+            KnowledgeBaseRetrieval::identifiers('По акту СЦ-714029 ремонтировали SNR-UPS-BCRM-480-9 на 12 В, а монитор MAG301RF — 2 раза?'),
+        );
+    }
+
+    public function test_chunks_containing_an_identifier_of_the_question_come_first(): void
+    {
+        $this->fakeQdrant([$this->point('similar-act', 'АКТ № СЦ-743718'), $this->point('act-chunk', 'АКТ № СЦ-714029')]);
+        Http::fake(['qdrant.test/collections/chunks/points/query' => Http::response(['result' => ['points' => [
+            ['id' => 'act-chunk', 'score' => 0.32, 'payload' => ['content' => 'АКТ № СЦ-714029', 'sourceType' => 'document', 'sourceName' => '104', 'document_id' => 104, 'access_level' => 'internal']],
+        ]]])]);
+
+        $chunks = $this->retrieve('Что ремонтировали по акту СЦ-714029?', AccessLevel::Internal);
+
+        $this->assertSame(['act-chunk', 'similar-act'], array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $chunks));
+        $this->assertSame('identifier', $chunks[0]->metadata['retrieved_by']);
+        $this->assertSame(0.32, $chunks[0]->getScore());
+
+        // Подстрока ищется среди того, что открывает допуск, ближайшие к вопросу — первыми (FR-7)
+        Http::assertSent(fn (Request $request): bool => $request->data()['query'] === self::QUESTION_VECTOR
+            && $request->data()['filter'] === ['must' => [
+                ['key' => 'content', 'match' => ['text' => 'СЦ-714029']],
+                ['key' => 'access_level', 'match' => ['any' => ['public', 'internal']]],
+            ]]
+            && $request->data()['limit'] === 2);
+        $this->assertCount(1, $this->embeddedTexts);
+    }
+
+    public function test_a_chunk_already_reached_by_relations_is_not_bridged_again(): void
+    {
+        $this->fakeQdrant([$this->point('seed-chunk', 'Полосы на экране: проверьте кабель.')]);
+        $this->graphStore->responder = fn (string $query): array => match (true) {
+            str_contains($query, 'MATCH (seed:Chunk)') => [['chunk_id' => 'fix-chunk', 'hops' => 1, 'paths' => 1, 'facts' => ['полосы —FIXED_BY→ замена кабеля']]],
+            str_contains($query, '(equipment:Entity') => [['chunk_id' => 'fix-chunk', 'equipment' => 'MAG301RF']],
+            default => [],
+        };
+        Http::fake(['qdrant.test/collections/chunks/points/scroll' => Http::response(['result' => ['points' => [
+            ['id' => 'fix-chunk', 'payload' => ['content' => 'Замените кабель.', 'sourceType' => 'document', 'sourceName' => '5', 'document_id' => 5, 'access_level' => 'public']],
+        ]]])]);
+
+        $chunks = $this->retrieve('полосы на экране', AccessLevel::Public);
+
+        $this->assertSame(['seed-chunk', 'fix-chunk'], array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $chunks));
+        Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/points/query'));
+    }
+
     public function test_nothing_found_by_vectors_means_no_graph_expansion(): void
     {
         $this->fakeQdrant([]);

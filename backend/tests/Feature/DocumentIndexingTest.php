@@ -145,6 +145,39 @@ class DocumentIndexingTest extends TestCase
         $this->assertGreaterThanOrEqual(0.0, $document->indexing_time);
     }
 
+    public function test_a_heading_the_chunker_drops_is_put_back_into_the_next_chunk(): void
+    {
+        // HybridChunker: у заголовка с номером акта нет своего текста — следом идёт заголовок того же уровня
+        $this->fakeChunks([
+            [...$this->chunk(0, "ООО «ТехноМарт»\nЮридический адрес: Красногорск", ['ООО «ТехноМарт»']), 'doc_items' => ['#/texts/1']],
+            [...$this->chunk(1, "Тип обслуживания: ПЛАТНЫЙ РЕМОНТ\nТовар: SNR-UPS-BCRM-480-9", ['Тип обслуживания: ПЛАТНЫЙ РЕМОНТ']), 'doc_items' => ['#/tables/0', '#/texts/4']],
+        ]);
+        $document = $this->extractedDocument(extraction: [
+            'schema_name' => 'DoclingDocument',
+            'body' => ['children' => [['$ref' => '#/texts/0'], ['$ref' => '#/texts/1'], ['$ref' => '#/texts/2'], ['$ref' => '#/texts/3'], ['$ref' => '#/tables/0'], ['$ref' => '#/groups/0']]],
+            'groups' => [['self_ref' => '#/groups/0', 'children' => [['$ref' => '#/texts/4']]]],
+            'tables' => [['self_ref' => '#/tables/0']],
+            'texts' => [
+                ['self_ref' => '#/texts/0', 'label' => 'section_header', 'text' => 'ООО «ТехноМарт»'],
+                ['self_ref' => '#/texts/1', 'label' => 'text', 'text' => 'Юридический адрес: Красногорск'],
+                ['self_ref' => '#/texts/2', 'label' => 'section_header', 'text' => 'АКТ СЕРВИСНОГО ОБСЛУЖИВАНИЯ № СЦ-714029'],
+                ['self_ref' => '#/texts/3', 'label' => 'section_header', 'text' => 'Тип обслуживания: ПЛАТНЫЙ РЕМОНТ'],
+                ['self_ref' => '#/texts/4', 'label' => 'text', 'text' => 'Товар: SNR-UPS-BCRM-480-9'],
+            ],
+        ]);
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->assertSame([
+            "ООО «ТехноМарт»\nЮридический адрес: Красногорск",
+            "АКТ СЕРВИСНОГО ОБСЛУЖИВАНИЯ № СЦ-714029\nТип обслуживания: ПЛАТНЫЙ РЕМОНТ\nТовар: SNR-UPS-BCRM-480-9",
+        ], $this->embeddedTexts);
+        $this->assertSame(
+            ['АКТ СЕРВИСНОГО ОБСЛУЖИВАНИЯ № СЦ-714029', 'Тип обслуживания: ПЛАТНЫЙ РЕМОНТ'],
+            $this->points()[1]->metadata['headings'],
+        );
+    }
+
     public function test_chunks_in_languages_other_than_russian_and_english_are_not_indexed(): void
     {
         $this->fakeChunks([
@@ -494,13 +527,14 @@ class DocumentIndexingTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $extraction
      */
-    private function extractedDocument(array $attributes = []): Document
+    private function extractedDocument(array $attributes = [], array $extraction = ['schema_name' => 'DoclingDocument']): Document
     {
         $document = Document::factory()->create(['status' => DocumentStatus::Extracted, ...$attributes]);
         Storage::disk('documents')->put(
             'extracted/'.substr($document->digest, 0, 2).'/'.$document->digest.'.json',
-            '{"schema_name":"DoclingDocument"}',
+            json_encode($extraction, JSON_UNESCAPED_UNICODE),
         );
 
         return $document;

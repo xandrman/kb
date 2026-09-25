@@ -6,6 +6,7 @@ use App\Enums\AccessLevel;
 use App\Models\Document;
 use App\Observability\Tracing;
 use App\Services\KnowledgeGraph;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\RAG\Document as Chunk;
@@ -24,6 +25,13 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      */
     private const string QUERY_INSTRUCTION = 'Given a question, retrieve passages that answer the question';
 
+    /**
+     * The last question and its embedding: the vector search and the equipment bridge rank by the same vector.
+     *
+     * @var array{question: string, embedding: list<float>}|null
+     */
+    private ?array $questionEmbedding = null;
+
     public function __construct(
         private readonly EmbeddingsProviderInterface $embeddings,
         private readonly QdrantVectorStore $chunks,
@@ -39,9 +47,10 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      */
     public function retrieve(Message $query): array
     {
-        $found = $this->vectorSearch((string) $query->getContent());
+        $question = (string) $query->getContent();
+        $found = $this->vectorSearch($question);
 
-        return [...$found, ...$this->graphExpansion($found)];
+        return [...$found, ...$this->graphExpansion($found, $question)];
     }
 
     /**
@@ -64,7 +73,7 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      */
     private function searchVectors(string $question): array
     {
-        $embedding = $this->embeddings->embedText('Instruct: '.self::QUERY_INSTRUCTION."\nQuery: {$question}");
+        $embedding = $this->embedQuestion($question);
 
         // ADR-0006: гриф — условие внутри поиска в Qdrant, а не отбор после него: недоступный чанк не займёт место в выдаче
         $found = array_values([...$this->chunks
@@ -75,7 +84,53 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
             $chunk->addMetadata('retrieved_by', 'vector');
         }
 
-        return $this->describeDocuments($found);
+        // Совпадение по номеру акта или модели точнее сходства смысла: такие чанки идут первыми
+        $identified = $this->searchIdentifiers($question);
+        $identifiedIds = array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), $identified);
+        $found = [...$identified, ...array_filter($found, fn (Chunk $chunk): bool => ! in_array((string) $chunk->getId(), $identifiedIds, true))];
+
+        return $this->describeDocuments(array_values($found));
+    }
+
+    /**
+     * Chunks containing an identifier from the question — a service act number, a model code — closest to the question first.
+     *
+     * Эмбеддинг почти не различает номера: акт СЦ-714029 и акт СЦ-743718 для него одинаково близки к вопросу.
+     * Без полнотекстового индекса условие text в Qdrant — точный поиск подстроки; гриф — в том же фильтре (ADR-0006).
+     *
+     * @return list<Chunk>
+     */
+    private function searchIdentifiers(string $question): array
+    {
+        $identified = [];
+
+        foreach (array_slice(self::identifiers($question), 0, config('services.identifiers.limit')) as $identifier) {
+            $points = $this->closestPoints(['must' => [['key' => 'content', 'match' => ['text' => $identifier]], $this->accessFilter()]], $question, config('services.identifiers.chunks'));
+
+            foreach ($points as $point) {
+                $chunk = $this->chunkFromPoint($point['id'], $point['payload']);
+                $chunk->setScore($point['score']);
+                $chunk->addMetadata('retrieved_by', 'identifier');
+                $identified[$point['id']] ??= $chunk;
+            }
+        }
+
+        return array_values($identified);
+    }
+
+    /**
+     * Identifier-like tokens of the question: at least five characters with a digit, such as «СЦ-714029» or «SNR-UPS-LID-1500».
+     *
+     * @return list<string>
+     */
+    public static function identifiers(string $question): array
+    {
+        preg_match_all('/(?<![\p{L}\p{N}])[\p{L}\p{N}]+(?:[-\/.][\p{L}\p{N}]+)*/u', $question, $matches);
+
+        return array_values(array_unique(array_filter(
+            $matches[0],
+            fn (string $token): bool => mb_strlen($token) >= 5 && preg_match('/\p{N}/u', $token) === 1,
+        )));
     }
 
     /**
@@ -95,18 +150,20 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
     }
 
     /**
-     * Chunks the graph reaches from the seed chunks.
+     * Chunks the graph reaches from the seed chunks: by relations, then through the same equipment in other documents.
      *
      * @param  list<Chunk>  $seeds
      * @return list<Chunk>
      */
-    public function graphExpansion(array $seeds): array
+    public function graphExpansion(array $seeds, string $question): array
     {
-        return $this->tracing->span('rag.graph_expansion', function (SpanInterface $span) use ($seeds): array {
+        return $this->tracing->span('rag.graph_expansion', function (SpanInterface $span) use ($seeds, $question): array {
             $expansion = $this->expandThroughGraph($seeds);
-            $span->setAttribute('kb.chunks.added', count($expansion));
+            $bridged = $this->bridgeThroughEquipment($seeds, $expansion, $question);
+            $span->setAttribute('kb.chunks.added', count($expansion) + count($bridged));
+            $span->setAttribute('kb.chunks.bridged', count($bridged));
 
-            return $expansion;
+            return [...$expansion, ...$bridged];
         }, ['kb.chunks.seeds' => count($seeds)]);
     }
 
@@ -139,20 +196,92 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
                 continue;
             }
 
-            $payload = $points[$relation['chunk_id']]['payload'];
-
-            $chunk = new Chunk($payload['content']);
-            $chunk->id = $relation['chunk_id'];
-            $chunk->sourceType = $payload['sourceType'];
-            $chunk->sourceName = $payload['sourceName'];
-            $chunk->metadata = array_diff_key($payload, array_flip(['content', 'sourceType', 'sourceName']));
-            $chunk->addMetadata('retrieved_by', 'graph');
             // Факты пути объясняют модели, почему чанк попал в контекст
-            $chunk->addMetadata('graph_facts', $relation['facts']);
-            $expansion[] = $chunk;
+            $expansion[] = $this->graphChunk($relation['chunk_id'], $points[$relation['chunk_id']]['payload'], $relation['facts']);
         }
 
         return $this->describeDocuments($expansion);
+    }
+
+    /**
+     * Second hop of a multi-hop question: the equipment named in the best found chunks leads to other documents about it,
+     * and for each model the chunks closest to the question are taken (act of repair → passport of the model).
+     *
+     * @param  list<Chunk>  $seeds
+     * @param  list<Chunk>  $expansion
+     * @return list<Chunk>
+     */
+    private function bridgeThroughEquipment(array $seeds, array $expansion, string $question): array
+    {
+        // Как и у expansionEntities, мост идёт от лучших чанков: от десятка слабых кандидатов он уводит к чужим моделям
+        $candidates = $this->knowledgeGraph->equipmentBridgedChunks(
+            array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), array_slice($seeds, 0, 3)),
+            $this->clearance,
+            config('services.graph.bridge_candidates'),
+        );
+
+        $alreadyFound = array_map(fn (Chunk $chunk): string => (string) $chunk->getId(), [...$seeds, ...$expansion]);
+        $chunkIdsByEquipment = [];
+        foreach ($candidates as $candidate) {
+            if (! in_array($candidate['chunk_id'], $alreadyFound, true)) {
+                $chunkIdsByEquipment[$candidate['equipment']][] = $candidate['chunk_id'];
+            }
+        }
+
+        $bridged = [];
+        foreach ($chunkIdsByEquipment as $equipment => $chunkIds) {
+            $filter = ['must' => [['has_id' => $chunkIds], $this->accessFilter()]];
+
+            foreach ($this->closestPoints($filter, $question, config('services.graph.bridge_limit')) as $point) {
+                $chunk = $this->graphChunk($point['id'], $point['payload'], ["{$equipment} — та же модель изделия, что в найденных фрагментах"]);
+                $chunk->setScore($point['score']);
+                $bridged[$point['id']] ??= $chunk;
+            }
+        }
+
+        return $this->describeDocuments(array_values($bridged));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $facts
+     */
+    private function graphChunk(string $id, array $payload, array $facts): Chunk
+    {
+        $chunk = $this->chunkFromPoint($id, $payload);
+        $chunk->addMetadata('retrieved_by', 'graph');
+        $chunk->addMetadata('graph_facts', $facts);
+
+        return $chunk;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function chunkFromPoint(string $id, array $payload): Chunk
+    {
+        $chunk = new Chunk($payload['content']);
+        $chunk->id = $id;
+        $chunk->sourceType = $payload['sourceType'];
+        $chunk->sourceName = $payload['sourceName'];
+        $chunk->metadata = array_diff_key($payload, array_flip(['content', 'sourceType', 'sourceName']));
+
+        return $chunk;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function embedQuestion(string $question): array
+    {
+        if ($this->questionEmbedding === null || $this->questionEmbedding['question'] !== $question) {
+            $this->questionEmbedding = [
+                'question' => $question,
+                'embedding' => $this->embeddings->embedText('Instruct: '.self::QUERY_INSTRUCTION."\nQuery: {$question}"),
+            ];
+        }
+
+        return $this->questionEmbedding['embedding'];
     }
 
     /**
@@ -187,10 +316,8 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
      */
     private function pointsWithIds(array $ids): array
     {
-        $collectionUrl = rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection');
-
-        return Http::withHeaders(array_filter(['api-key' => config('services.qdrant.key')]))
-            ->post("{$collectionUrl}/points/scroll", [
+        return $this->qdrant()
+            ->post($this->collectionUrl().'/points/scroll', [
                 'filter' => ['must' => [['has_id' => $ids], $this->accessFilter()]],
                 'limit' => count($ids),
                 'with_payload' => true,
@@ -198,6 +325,35 @@ class KnowledgeBaseRetrieval implements RetrievalInterface
             ])
             ->throw()
             ->json('result.points');
+    }
+
+    /**
+     * The points passing the filter closest to the question; the filter carries the access condition (FR-7).
+     *
+     * @param  array{must: list<array<string, mixed>>}  $filter
+     * @return list<array{id: string, score: float, payload: array<string, mixed>}>
+     */
+    private function closestPoints(array $filter, string $question, int $limit): array
+    {
+        return $this->qdrant()
+            ->post($this->collectionUrl().'/points/query', [
+                'query' => $this->embedQuestion($question),
+                'filter' => $filter,
+                'limit' => $limit,
+                'with_payload' => true,
+            ])
+            ->throw()
+            ->json('result.points');
+    }
+
+    private function qdrant(): PendingRequest
+    {
+        return Http::withHeaders(array_filter(['api-key' => config('services.qdrant.key')]));
+    }
+
+    private function collectionUrl(): string
+    {
+        return rtrim(config('services.qdrant.url'), '/').'/collections/'.config('services.qdrant.collection');
     }
 
     /**

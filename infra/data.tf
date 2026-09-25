@@ -11,6 +11,14 @@ resource "docker_container" "qdrant" {
   log_driver = "syslog"
   log_opts   = local.syslog_log_opts
 
+  # Без ключа любой контейнер kb-internal читает и меняет коллекции в обход RBAC по грифу (FR-7): фильтр
+  # access_level накладывает kb-app, а не Qdrant. Полный ключ — у kb-app и воркеров, ключ только на чтение — у Prometheus.
+  # /healthz, /livez и /readyz отвечают без ключа
+  env = [
+    "QDRANT__SERVICE__API_KEY=${var.qdrant_api_key}",
+    "QDRANT__SERVICE__READ_ONLY_API_KEY=${var.qdrant_read_only_api_key}",
+  ]
+
   volumes {
     container_path = "/qdrant/storage"
     volume_name    = docker_volume.qdrant_data.name
