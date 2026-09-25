@@ -67,10 +67,29 @@ class DocumentsTable
     {
         return TextColumn::make($name)
             ->label($label)
-            // В образе Alpine у ICU только данные en: русский разделитель задаётся явно
-            ->numeric(decimalPlaces: 1, decimalSeparator: ',')
-            ->suffix(' с')
+            ->formatStateUsing(fn (float $state): string => self::duration($state))
             ->placeholder('—')
             ->sortable();
+    }
+
+    /**
+     * «4,2 с», «42 с», «1 мин 30 с», «1 ч 5 мин»: tenths only where they matter, below ten seconds.
+     */
+    private static function duration(float $seconds): string
+    {
+        if ($seconds < 10) {
+            // В образе Alpine у ICU только данные en: русский разделитель задаётся явно
+            return number_format($seconds, 1, ',', '').' с';
+        }
+
+        $seconds = (int) round($seconds);
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+
+        return match (true) {
+            $hours > 0 => "{$hours} ч {$minutes} мин",
+            $minutes > 0 => "{$minutes} мин ".($seconds % 60).' с',
+            default => "{$seconds} с",
+        };
     }
 }
