@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\IndexDocumentChunks;
 use App\Enums\AccessLevel;
+use App\Enums\DoclingRoute;
 use App\Enums\DocumentStatus;
 use App\Jobs\IndexDocument;
+use App\Jobs\PollExtraction;
 use App\Jobs\ProcessChunk;
 use App\Models\Document;
 use App\Neuron\GraphExtractor;
@@ -15,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Testing\Fakes\BatchFake;
 use Illuminate\Support\Testing\Fakes\PendingBatchFake;
@@ -193,6 +196,21 @@ class DocumentIndexingTest extends TestCase
         $this->assertSame([0, 2], array_map(fn (Chunk $point): int => $point->metadata['chunk_index'], $points));
         $this->assertSame(IndexDocumentChunks::chunkId($document->id, 2), $points[1]->getId());
         $this->llm->assertMethodCallCount('structured', 2);
+    }
+
+    public function test_an_english_table_without_function_words_is_indexed(): void
+    {
+        $table = 'Communication 5.1 RS232 and USB Port Definition, 1 = Empty. Definition, 2 = Transmit. Definition, 3 = Receive. '
+            .'Definition, 4 = Empty. Definition, 5 = GND. Pins, 1 = 6. Pins, 2 = 7. Pins, 3 = 8. Pins, 4 = 9.';
+        $this->fakeChunks([
+            [...$this->chunk(0, $table), 'doc_items' => ['#/texts/0', '#/tables/0']],
+            $this->chunk(1, 'Normally UPS working mode include normal mode, bypass mode, battery mode, ECO mode, frequency converter mode, self aging mode.'),
+        ]);
+        $document = $this->extractedDocument();
+
+        app()->call([new IndexDocument($document), 'handle']);
+
+        $this->assertSame([0], array_map(fn (Chunk $point): int => $point->metadata['chunk_index'], $this->points()));
     }
 
     public function test_a_document_with_no_russian_or_english_text_fails(): void
@@ -458,6 +476,39 @@ class DocumentIndexingTest extends TestCase
 
         $job->assertFailed();
         $this->assertSame(DocumentStatus::Extracted, $document->refresh()->status);
+    }
+
+    public function test_a_born_digital_document_without_chunks_is_sent_to_the_vlm_pipeline_once(): void
+    {
+        Queue::fake();
+        $this->fakeChunks([]);
+        Http::fake(['docling.test/v1/convert/file/async' => Http::response(['task_id' => 'vlm-task', 'task_status' => 'pending'])]);
+        $document = $this->extractedDocument(['route' => DoclingRoute::Standard]);
+        Storage::disk('documents')->put('raw/'.substr($document->digest, 0, 2).'/'.$document->digest, '%PDF-1.4 slides');
+
+        $job = (new IndexDocument($document))->withFakeQueueInteractions();
+        app()->call([$job, 'handle']);
+
+        $job->assertNotFailed();
+        Http::assertSent(fn (Request $request): bool => $request->url() === self::DOCLING_URL.'/v1/convert/file/async'
+            && collect($request->data())->firstWhere('name', 'pipeline')['contents'] === 'vlm');
+        $document->refresh();
+        $this->assertSame(DocumentStatus::Extracting, $document->status);
+        $this->assertSame(DoclingRoute::Vlm, $document->route);
+        $this->assertSame('vlm-task', $document->docling_task_id);
+        Queue::assertPushed(PollExtraction::class);
+    }
+
+    public function test_a_vlm_document_without_chunks_fails(): void
+    {
+        $this->fakeChunks([]);
+        $document = $this->extractedDocument(['route' => DoclingRoute::Vlm]);
+
+        $job = (new IndexDocument($document))->withFakeQueueInteractions();
+        app()->call([$job, 'handle']);
+
+        $job->assertFailed();
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/v1/convert/'));
     }
 
     /**
