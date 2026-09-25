@@ -15,6 +15,10 @@ scrape_configs:
           - "kb-vllm-reranker:8000"
 
   - job_name: "qdrant"
+    # Ключ только на чтение; Qdrant принимает его как Bearer
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/qdrant-api-key
     static_configs:
       - targets: ["kb-qdrant:6333"]
 

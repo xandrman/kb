@@ -153,3 +153,25 @@ variable "log_network_subnet" {
   type        = string
   default     = "10.254.254.0/24"
 }
+
+variable "qdrant_api_key" {
+  description = "Qdrant API key with full access, used by kb-app and the queue workers (generate: openssl rand -hex 32)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{64}$", var.qdrant_api_key))
+    error_message = "qdrant_api_key must be 64 hex characters."
+  }
+}
+
+variable "qdrant_read_only_api_key" {
+  description = "Qdrant read-only API key, used by Prometheus to scrape /metrics (generate: openssl rand -hex 32)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{64}$", var.qdrant_read_only_api_key)) && var.qdrant_read_only_api_key != var.qdrant_api_key
+    error_message = "qdrant_read_only_api_key must be 64 hex characters and differ from qdrant_api_key."
+  }
+}
