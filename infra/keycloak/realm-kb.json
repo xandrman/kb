@@ -5,6 +5,7 @@
   "loginTheme": "keycloak",
   "sslRequired": "none",
   "registrationAllowed": false,
+  "accessTokenLifespan": 1800,
   "roles": {
     "realm": [
       { "name": "kb-admin", "description": "Роль администратора: админ-панель и Grafana" }
